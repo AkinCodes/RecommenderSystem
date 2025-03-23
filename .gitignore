@@ -5,3 +5,11 @@
 !/RecommenderSystem2/
 !.gitignore
 !.env
+
+# Ignore large binary files (e.g., .so, .zip, etc.)
+*.so
+*.tar.gz
+*.zip
+
+# Ignore the virtual environment and build artifacts
+venv/
