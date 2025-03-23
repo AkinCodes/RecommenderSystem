@@ -1,0 +1,7 @@
+# Ignore everything by default
+/*
+
+# Un-ignore specific directories/files
+!/RecommenderSystem2/
+!.gitignore
+!.env
