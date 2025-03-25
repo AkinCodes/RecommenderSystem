@@ -1,0 +1,47 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual environments
+.venv/
+venv/
+.env
+
+# macOS
+.DS_Store
+
+# Docker
+*.log
+*.pid
+*.tar
+*.db
+*.sqlite3
+
+# IDE files
+.vscode/
+.idea/
+
+# GitHub backup noise
+*.bak
+*.swp
+
+# Data / model weights / output
+data/
+*.csv
+*.tsv
+*.mp4
+*.jpg
+*.png
+*.pth
+*.mkv
+
+# Docker volumes / builds
+volumes/
+build/
+dist/
+*.egg-info
+
+# Ignore node_modules just in case
+node_modules/
+
