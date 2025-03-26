@@ -1,30 +1,34 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import requests
+from typing import List, Dict, Any
 import torch
-from models.dlrm import DLRMModel
-from typing import List
-from dotenv import load_dotenv
-from typing import Dict, Any
+import requests
 import os
+from dotenv import load_dotenv
+from models.dlrm import DLRMModel
 
+# Load .env
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
+app = FastAPI(
+    title="CinemaScopeAI 🎬",
+    description="AI-powered movie recommendation API using DLRM + TMDB",
+    version="1.0.0",
+)
 
-app = FastAPI()
-
+# TMDB Keys
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 TMDB_BEARER_TOKEN = os.getenv("TMDB_BEARER_TOKEN")
 
 
-# Fetch real movie data from TMDB
+# --- Movie Fetcher ---
 def fetch_real_movies():
     url = f"https://api.themoviedb.org/3/movie/popular?language=en-US&page=1"
     headers = {
         "Authorization": f"Bearer {TMDB_BEARER_TOKEN}",
         "accept": "application/json",
     }
-    # response = requests.get(url, headers=headers)
+
     response = requests.get(url, headers=headers)
 
     if response.status_code != 200:
@@ -32,43 +36,46 @@ def fetch_real_movies():
         return []
 
     try:
-        results = response.json()["results"]
-        ...
+        movies = response.json()["results"]
     except Exception as e:
         print("🛑 Error parsing TMDB response:", e)
         return []
 
-    if response.status_code == 200:
-        movies = response.json()["results"]
-        movie_list = [
-            {
-                "title": movie["title"],
-                "genre": "Unknown",
-                "rating": "N/A",
-                "score": movie["vote_average"] / 10,
-                "poster_url": (
-                    f"https://image.tmdb.org/t/p/w500{movie['poster_path']}"
-                    if movie.get("poster_path")
-                    else "https://via.placeholder.com/500"
-                ),
-                "director": "N/A",
-                "release_year": (
-                    int(movie["release_date"].split("-")[0])
-                    if movie.get("release_date")
-                    else "Unknown"
-                ),
-                "summary": movie["overview"],
-            }
-            for movie in movies
-        ]
-        return movie_list
-    else:
-        return []
+    return [
+        {
+            "title": movie["title"],
+            "genre": "Unknown",
+            "rating": "N/A",
+            "score": movie["vote_average"] / 10,
+            "poster_url": (
+                f"https://image.tmdb.org/t/p/w500{movie['poster_path']}"
+                if movie.get("poster_path")
+                else "https://via.placeholder.com/500"
+            ),
+            "director": "N/A",
+            "release_year": (
+                int(movie["release_date"].split("-")[0])
+                if movie.get("release_date")
+                else "Unknown"
+            ),
+            "summary": movie["overview"],
+        }
+        for movie in movies
+    ]
 
 
+# --- Request + Response Models ---
 class PredictionRequest(BaseModel):
     continuous_features: List[float]
     categorical_features: List[int]
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "continuous_features": [0.6, 0.8],
+                "categorical_features": [1, 7],
+            }
+        }
 
 
 class RecommendationResponse(BaseModel):
@@ -82,6 +89,7 @@ class RecommendationResponse(BaseModel):
     summary: str
 
 
+# --- Model Loading ---
 num_continuous_features = 2
 num_categorical_features = 2
 num_genres = 73
@@ -98,38 +106,25 @@ model.load_state_dict(state_dict)
 model.eval()
 
 
-# Prediction Route (Fetch Movie Recommendations)
-# @app.post("/predict/")
-# async def predict(request: PredictionRequest) -> Dict[str, Any]:
-#     if len(request.categorical_features) != num_categorical_features:
-#         raise HTTPException(
-#             status_code=400,
-#             detail=f"Expected {num_categorical_features} categorical features.",
-#         )
-
-#     full_categorical_features = request.categorical_features + [0] * num_genres
-#     continuous_tensor = torch.tensor([request.continuous_features], dtype=torch.float32)
-#     categorical_tensor = torch.tensor([full_categorical_features], dtype=torch.int64)
-
-#     # Generate a prediction score
-#     prediction_score = model(continuous_tensor, categorical_tensor).item()
-
-#     # Fetch real movies from TMDB
-#     MOVIE_DATABASE = fetch_real_movies()
-
-#     if not MOVIE_DATABASE:
-#         raise HTTPException(status_code=500, detail="Failed to fetch movies from TMDB.")
-
-#     recommended_movies = sorted(
-#         MOVIE_DATABASE, key=lambda x: abs(x["score"] - prediction_score), reverse=True
-#     )
-#     return {"recommendations": recommended_movies[:5]}
-
-#     # return recommended_movies[:5]  # Return top 5 movie recommendations
+# --- Routes ---
+@app.get("/", tags=["Health"])
+async def root():
+    return {"message": "Recommendation API is running!"}
 
 
-# Prediction Route (Fetch Movie Recommendations)
-@app.post("/predict/")
+@app.post(
+    "/predict/",
+    summary="Get Movie Recommendations",
+    description=(
+        "**Valid Index Ranges:**\n"
+        "- `categorical_features[0]`: 0 - 1 (gender)\n"
+        "- `categorical_features[1]`: 0 - 17 (age bucket)\n"
+        "- You must provide exactly 2 categorical features.\n\n"
+        "**Note:** The model will internally pad genre indexes (73 extra dimensions)."
+    ),
+    response_model=Dict[str, Any],
+    tags=["Inference"],
+)
 async def predict(request: PredictionRequest) -> Dict[str, Any]:
     if len(request.categorical_features) != num_categorical_features:
         raise HTTPException(
@@ -137,35 +132,38 @@ async def predict(request: PredictionRequest) -> Dict[str, Any]:
             detail=f"Expected {num_categorical_features} categorical features.",
         )
 
-    # Validate index ranges against embedding_sizes
-    max_indices = embedding_sizes[:num_categorical_features]  # e.g. [2, 18]
-    for i, val in enumerate(request.categorical_features):
-        if val >= max_indices[i]:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Feature {i} index {val} out of range (max allowed is {max_indices[i] - 1}).",
-            )
+    # Validate range
+    if request.categorical_features[0] > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Feature 0 index {} out of range (max allowed is 1).".format(
+                request.categorical_features[0]
+            ),
+        )
+    if request.categorical_features[1] > 17:
+        raise HTTPException(
+            status_code=400,
+            detail="Feature 1 index {} out of range (max allowed is 17).".format(
+                request.categorical_features[1]
+            ),
+        )
 
+    # Pad genre
     full_categorical_features = request.categorical_features + [0] * num_genres
     continuous_tensor = torch.tensor([request.continuous_features], dtype=torch.float32)
     categorical_tensor = torch.tensor([full_categorical_features], dtype=torch.int64)
 
-    # Generate a prediction score
+    # Predict score
     prediction_score = model(continuous_tensor, categorical_tensor).item()
 
-    # Fetch real movies from TMDB
+    # Get movie database
     MOVIE_DATABASE = fetch_real_movies()
-
     if not MOVIE_DATABASE:
         raise HTTPException(status_code=500, detail="Failed to fetch movies from TMDB.")
 
+    # Sort movies by closeness to predicted score
     recommended_movies = sorted(
         MOVIE_DATABASE, key=lambda x: abs(x["score"] - prediction_score), reverse=True
     )
+
     return {"recommendations": recommended_movies[:5]}
-
-
-# Health Check Endpoint
-@app.get("/")
-async def root():
-    return {"message": "Recommendation API is running!"}
