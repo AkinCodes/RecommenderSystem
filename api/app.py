@@ -8,6 +8,10 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 from typing import List
 from models.dlrm import DLRMModel
+import uvicorn
+import os
+
+app = FastAPI()
 
 # Load .env
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
@@ -188,13 +192,6 @@ async def recommend_movies(request: RecommendRequest):
         {"title": "The Matrix", "rating": 8.7},
         {"title": "Interstellar", "rating": 8.6},
     ]
-
-
-from fastapi import FastAPI
-import uvicorn
-import os
-
-app = FastAPI()
 
 
 # Your endpoints here
