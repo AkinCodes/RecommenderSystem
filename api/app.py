@@ -175,31 +175,6 @@ async def predict(request: PredictionRequest) -> Dict[str, Any]:
     return {"recommendations": recommended_movies[:5]}
 
 
-class RecommendRequest(BaseModel):
-    user_id: int
-
-
-class Recommendation(BaseModel):
-    title: str
-    rating: float
-
-
-@app.post("/recommend", response_model=List[Recommendation])
-async def recommend_movies(request: RecommendRequest):
-    # Dummy recommendations for now
-    return [
-        {"title": "Inception", "rating": 9.0},
-        {"title": "The Matrix", "rating": 8.7},
-        {"title": "Interstellar", "rating": 8.6},
-    ]
-
-
-# Your endpoints here
-@app.get("/")
-def read_root():
-    return {"message": "Hello, world!"}
-
-
 @app.post("/predict/")
 def predict(data: dict):
     # your model inference logic
