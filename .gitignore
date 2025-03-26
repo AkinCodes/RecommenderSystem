@@ -33,7 +33,6 @@ data/
 *.mp4
 *.jpg
 *.png
-*.pth
 *.mkv
 
 # Docker volumes / builds
