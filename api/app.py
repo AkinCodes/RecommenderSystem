@@ -99,6 +99,36 @@ model.eval()
 
 
 # Prediction Route (Fetch Movie Recommendations)
+# @app.post("/predict/")
+# async def predict(request: PredictionRequest) -> Dict[str, Any]:
+#     if len(request.categorical_features) != num_categorical_features:
+#         raise HTTPException(
+#             status_code=400,
+#             detail=f"Expected {num_categorical_features} categorical features.",
+#         )
+
+#     full_categorical_features = request.categorical_features + [0] * num_genres
+#     continuous_tensor = torch.tensor([request.continuous_features], dtype=torch.float32)
+#     categorical_tensor = torch.tensor([full_categorical_features], dtype=torch.int64)
+
+#     # Generate a prediction score
+#     prediction_score = model(continuous_tensor, categorical_tensor).item()
+
+#     # Fetch real movies from TMDB
+#     MOVIE_DATABASE = fetch_real_movies()
+
+#     if not MOVIE_DATABASE:
+#         raise HTTPException(status_code=500, detail="Failed to fetch movies from TMDB.")
+
+#     recommended_movies = sorted(
+#         MOVIE_DATABASE, key=lambda x: abs(x["score"] - prediction_score), reverse=True
+#     )
+#     return {"recommendations": recommended_movies[:5]}
+
+#     # return recommended_movies[:5]  # Return top 5 movie recommendations
+
+
+# Prediction Route (Fetch Movie Recommendations)
 @app.post("/predict/")
 async def predict(request: PredictionRequest) -> Dict[str, Any]:
     if len(request.categorical_features) != num_categorical_features:
@@ -106,6 +136,15 @@ async def predict(request: PredictionRequest) -> Dict[str, Any]:
             status_code=400,
             detail=f"Expected {num_categorical_features} categorical features.",
         )
+
+    # Validate index ranges against embedding_sizes
+    max_indices = embedding_sizes[:num_categorical_features]  # e.g. [2, 18]
+    for i, val in enumerate(request.categorical_features):
+        if val >= max_indices[i]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Feature {i} index {val} out of range (max allowed is {max_indices[i] - 1}).",
+            )
 
     full_categorical_features = request.categorical_features + [0] * num_genres
     continuous_tensor = torch.tensor([request.continuous_features], dtype=torch.float32)
@@ -124,8 +163,6 @@ async def predict(request: PredictionRequest) -> Dict[str, Any]:
         MOVIE_DATABASE, key=lambda x: abs(x["score"] - prediction_score), reverse=True
     )
     return {"recommendations": recommended_movies[:5]}
-
-    # return recommended_movies[:5]  # Return top 5 movie recommendations
 
 
 # Health Check Endpoint
