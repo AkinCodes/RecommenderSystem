@@ -188,3 +188,27 @@ async def recommend_movies(request: RecommendRequest):
         {"title": "The Matrix", "rating": 8.7},
         {"title": "Interstellar", "rating": 8.6},
     ]
+
+
+from fastapi import FastAPI
+import uvicorn
+import os
+
+app = FastAPI()
+
+
+# Your endpoints here
+@app.get("/")
+def read_root():
+    return {"message": "Hello, world!"}
+
+
+@app.post("/predict/")
+def predict(data: dict):
+    # your model inference logic
+    return {"prediction": "result"}
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
