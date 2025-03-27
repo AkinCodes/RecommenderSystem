@@ -44,3 +44,5 @@ dist/
 # Ignore node_modules just in case
 node_modules/
 
+cinema-task-def.json
+nohup.out
