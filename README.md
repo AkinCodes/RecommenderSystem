@@ -1,29 +1,26 @@
 🎬 CinemaScopeAI – AI-Powered Movie Recommendation System
 CinemaScopeAI is a full-stack, production-ready AI movie recommendation platform that leverages deep learning and scalable backend infrastructure. It combines a powerful Python-based FastAPI backend with a Swift-based iOS frontend. Built with Clean Architecture principles, this project is modular, testable, and cloud-deployable via Docker and AWS ECS.
 
-🚀 Demo
+Demo
 🔗 Live Backend (Render/AWS ECS)
 
 📱 iOS Frontend Preview:
 <img src="screenshot_url" width="300" />
 
-🧠 How It Works
+How It Works
 The system uses collaborative filtering and content-based techniques to recommend movies based on user behavior and content similarity.
 
 Architecture Overview:
 
-css
-Copy
-Edit
-Xcode App (SwiftUI) 📱 
+Xcode App (SwiftUI) 
        ↓ REST API
-FastAPI (Python 🔥) 🚀
+FastAPI (Python) 
        ↓ PyTorch
-DL Recommendation Model 🎥
+DL Recommendation Model
        ↓
 Deployed via Docker + Render/AWS ECS ☁️
-📦 Tech Stack
-🔙 Backend (FastAPI)
+Tech Stack
+Backend (FastAPI)
 Python 3.10+
 
 FastAPI
@@ -58,7 +55,7 @@ Async API calls to deployed FastAPI
 
 💾 Custom Model Training – Scripted via train.py & inference.py.
 
-📁 Project Structure
+Project Structure
 graphql
 Copy
 Edit
@@ -97,17 +94,14 @@ Update base URL in CinemaScopeAIService.swift
 
 Build & run the app in the simulator
 
-📦 Deployment
-🐳 Docker
-bash
-Copy
-Edit
+Deployment
+Docker
 # Build Docker image
 docker build -t cinemascope-recsys .
 
 # Run locally
 docker run -d -p 8000:8000 cinemascope-recsys
-🚀 AWS ECS (Fargate)
+AWS ECS (Fargate)
 Push image to Amazon ECR
 
 Use ECS CLI or Console to deploy to Fargate
@@ -124,28 +118,28 @@ Set uvicorn api.app:app --host 0.0.0.0 --port 8000 as start command
 Done 🎉
 
 ✅ To Do
- Backend API endpoints
+Backend API endpoints
 
- Xcode frontend integration
+Xcode frontend integration
 
- Torch model training/inference
+Torch model training/inference
 
- Docker containerization
+Docker containerization
 
- GitHub Actions (CI)
+GitHub Actions (CI)
 
- Add Swagger custom docs
+Add Swagger custom docs
 
- Expand to TV show recommendations
+Expand to TV show recommendations
 
- Integrate Firebase Auth (iOS)
+Integrate Firebase Auth (iOS)
 
-🧠 Inspiration
+Inspiration
 Built as a portfolio-ready project to showcase modern machine learning, mobile development, and DevOps pipelines — from model training to user experience.
 
-📩 Contact
-Akin Olusanya
-📧 [your.email@example.com]
-🔗 LinkedIn
-📁 Portfolio
+**Akin Olusanya**  
+🎓 iOS Engineer | ML Enthusiast | Full-Stack Creator  
+📧 workwithakin@gmail.com  
+🔗 [LinkedIn](https://www.linkedin.com/in/akindeveloper)  
+📁 [GitHub](https://github.com/AkinCodes)
 
