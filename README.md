@@ -1,64 +1,77 @@
-🎬 CinemaScopeAI – AI-Powered Movie Recommendation System
-CinemaScopeAI is a full-stack, production-ready AI movie recommendation platform that leverages deep learning and scalable backend infrastructure. It combines a powerful Python-based FastAPI backend with a Swift-based iOS frontend. Built with Clean Architecture principles, this project is modular, testable, and cloud-deployable via Docker and AWS ECS.
+# 🎬 CinemaScopeAI – AI-Powered Movie Recommendation System
 
-Demo
-🔗 Live Backend (Render/AWS ECS)
+CinemaScopeAI is a **full-stack, production-ready AI movie recommendation platform** that leverages deep learning and scalable backend infrastructure. It combines a powerful **Python-based FastAPI backend** with a **Swift-based iOS frontend**. Built using **Clean Architecture** principles, this project is modular, testable, and cloud-deployable via **Docker** and **Render/AWS ECS**.
 
-📱 iOS Frontend Preview:
-<img src="screenshot_url" width="300" />
+---
 
-How It Works
-The system uses collaborative filtering and content-based techniques to recommend movies based on user behavior and content similarity.
+## Demo
+**Live Backend**: Render/AWS ECS deployment
 
-Architecture Overview:
+**📱 iOS Frontend Preview:**  
 
-Xcode App (SwiftUI) 
-       ↓ REST API
-FastAPI (Python) 
-       ↓ PyTorch
-DL Recommendation Model
+<img src="https://github.com/user-attachments/assets/ba68128d-5340-4e9b-8c09-22376492176f" width="300" />
+
+---
+
+## How It Works
+The system uses **collaborative filtering** and **content-based techniques** to recommend movies based on user behavior and content similarity.
+
+### Architecture Overview
+```
+Xcode App (SwiftUI) 📱
+       ↓  REST API
+FastAPI (Python)
+       ↓  PyTorch
+DL Recommendation Model 🎥
        ↓
 Deployed via Docker + Render/AWS ECS ☁️
-Tech Stack
-Backend (FastAPI)
-Python 3.10+
+```
 
-FastAPI
+---
 
-PyTorch
+## Tech Stack
 
-scikit-learn
+### 🔙 Backend (FastAPI)
+- Python 3.10+
+- FastAPI
+- PyTorch
+- scikit-learn
+- Uvicorn + Gunicorn
+- Dockerized + Deployable to AWS ECR/ECS or Render
 
-Uvicorn + Gunicorn
+### 📱 Frontend (iOS)
+- Swift
+- SwiftUI
+- MVVM
+- URLSession networking
+- Async API calls to deployed FastAPI
 
-Dockerized + Deployable to AWS ECR/ECS or Render
+---
 
-📱 Frontend (iOS)
-Swift
+## Features
+- **Smart Recommendations** – Based on vector embeddings and metadata.
+- **API-Driven** – Clean, documented RESTful endpoints.
+- **Unit & Integration Tests** – For both backend and frontend.
+- **CI/CD Ready** – GitHub Actions + Docker + Render/AWS ECS.
+- **Custom Model Training** – Scripted via `train.py` & `inference.py`.
 
-SwiftUI
+---
 
-MVVM
+## 📊 Dataset
+This project leverages the [`netflix_titles.csv`](https://www.kaggle.com/datasets/shivamb/netflix-shows) dataset, sourced from Kaggle. It contains metadata about Netflix content, including **titles, directors, genres, cast, release years, and descriptions**.
 
-URLSession networking
+While the deployed recommendation engine uses **real-time data from TMDB**, this dataset was vital during experimentation and model development:
 
-Async API calls to deployed FastAPI
+- Cold-start simulations
+- Embedding training
+- Initial data preprocessing & pipeline validation
 
-🧪 Features
-🔍 Smart Recommendations – Based on vector embeddings and metadata.
+It laid the groundwork for learning before switching to live TMDB-fetching in production.
 
-🌐 API-Driven – Clean, documented RESTful endpoints.
+---
 
-🧪 Unit & Integration Tests – For both backend and frontend.
-
-⚙️ CI/CD Ready – GitHub Actions + Docker + Render/AWS ECS.
-
-💾 Custom Model Training – Scripted via train.py & inference.py.
-
-Project Structure
-graphql
-Copy
-Edit
+## 📁 Project Structure
+```
 RecommenderSystem2/
 ├── api/                 # FastAPI routes
 │   └── app.py
@@ -70,12 +83,15 @@ RecommenderSystem2/
 ├── Dockerfile           # Backend containerization
 ├── requirements.txt     # Python dependencies
 ├── .gitignore
-└── trust-policy.json    # AWS ECS IAM Trust policy
-🧪 Running Locally
-Backend (FastAPI)
-bash
-Copy
-Edit
+└── trust-policy.json    # (legacy AWS setup)
+```
+
+---
+
+## 🧩 Running Locally
+
+### 🔙 Backend (FastAPI)
+```bash
 # 1. Create and activate a virtualenv
 python -m venv venv
 source venv/bin/activate
@@ -85,58 +101,66 @@ pip install -r requirements.txt
 
 # 3. Run the server
 uvicorn api.app:app --reload
-Visit: http://127.0.0.1:8000/docs
+```
+Visit: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
-Frontend (iOS)
-Open CinemaScopeAI.xcodeproj
+### 📱 Frontend (iOS)
+- Open `CinemaScopeAI.xcodeproj` in Xcode
+- In `CinemaScopeAIService.swift`, set:
+  ```swift
+  let baseURL = "https://cinemascope-api.onrender.com"
+  ```
+- Build & run on iOS Simulator (iOS 16+)
+- GitHub iOS Frontend Repo: [CinemaScopeAI (Frontend)](https://github.com/AkinCodes/CinemaScopeAI)
 
-Update base URL in CinemaScopeAIService.swift
+---
 
-Build & run the app in the simulator
+## Deployment
 
-Deployment
-Docker
+### 🐳 Docker
+```bash
 # Build Docker image
 docker build -t cinemascope-recsys .
 
 # Run locally
 docker run -d -p 8000:8000 cinemascope-recsys
-AWS ECS (Fargate)
-Push image to Amazon ECR
+```
 
-Use ECS CLI or Console to deploy to Fargate
+### ☁️ Render (Easy Alternative)
+- Create a new Web Service
+- Connect GitHub repo
+- Set:
+  ```bash
+  uvicorn api.app:app --host 0.0.0.0 --port 8000
+  ```
+- Done 
 
-Auto-scales and publicly available endpoint
+### (Optional) AWS ECS (Fargate)
+- Push Docker image to Amazon ECR
+- Use ECS CLI or Console to deploy
+- Auto-scales and generates public endpoint
 
-⚡ Render (Easy Alternative)
-Create a new Web Service
+---
 
-Connect GitHub repo
+## ✅ To Do
+- [x] Backend API endpoints
+- [x] Xcode frontend integration
+- [x] Torch model training/inference
+- [x] Docker containerization
+- [x] GitHub Actions (CI)
 
-Set uvicorn api.app:app --host 0.0.0.0 --port 8000 as start command
+---
 
-Done 🎉
+## Inspiration
+Built as a **portfolio-grade project** to demonstrate expertise in:
+- **End-to-end ML Systems**
+- **iOS Development & App Architecture**
+- **DevOps & Scalable Deployments**
+- **Modern UX integrated with real-time ML APIs**
 
-✅ To Do
-Backend API endpoints
+---
 
-Xcode frontend integration
-
-Torch model training/inference
-
-Docker containerization
-
-GitHub Actions (CI)
-
-Add Swagger custom docs
-
-Expand to TV show recommendations
-
-Integrate Firebase Auth (iOS)
-
-Inspiration
-Built as a portfolio-ready project to showcase modern machine learning, mobile development, and DevOps pipelines — from model training to user experience.
-
+## Author
 **Akin Olusanya**  
 🎓 iOS Engineer | ML Enthusiast | Full-Stack Creator  
 📧 workwithakin@gmail.com  
