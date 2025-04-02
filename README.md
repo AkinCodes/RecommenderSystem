@@ -24,13 +24,13 @@ The system uses **collaborative filtering** and **content-based techniques** to 
 
 ### Architecture Overview
 ```
-Xcode App (SwiftUI) 📱
+Xcode App (SwiftUI) 
        ↓  REST API
 FastAPI (Python)
        ↓  PyTorch
-DL Recommendation Model 🎥
+DL Recommendation Model 
        ↓
-Deployed via Docker + Render/AWS ECS ☁️
+Deployed via Docker + Render
 ```
 
 ---
@@ -123,7 +123,7 @@ Visit: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
 ## Deployment
 
-### 🐳 Docker
+### Docker
 ```bash
 # Build Docker image
 docker build -t cinemascope-recsys .
