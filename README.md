@@ -1,15 +1,21 @@
 # 🎬 CinemaScopeAI – AI-Powered Movie Recommendation System
 
-CinemaScopeAI is a **full-stack, production-ready AI movie recommendation platform** that leverages deep learning and scalable backend infrastructure. It combines a powerful **Python-based FastAPI backend** with a **Swift-based iOS frontend**. Built using **Clean Architecture** principles, this project is modular, testable, and cloud-deployable via **Docker** and **Render/AWS ECS**.
+CinemaScopeAI is a **full-stack, production-ready AI movie recommendation platform** that leverages deep learning and scalable backend infrastructure. It combines a powerful **Python-based FastAPI backend** with a **Swift-based iOS frontend**. Built using **Clean Architecture** principles, this project is modular, testable, and cloud-deployable via **Docker** and **Render**.
+
+As a bonus, the app includes a GPT-powered natural language recommender, allowing users to type freeform prompts like “mind-bending sci-fi thrillers with a twist” and receive smart, tailored movie suggestions using the OpenAI API.
 
 ---
 
 ## Demo
-**Live Backend**: Render/AWS ECS deployment
+**Live Backend**: Render deployment
 
 **📱 iOS Frontend Preview:**  
 
 <img src="https://github.com/user-attachments/assets/ba68128d-5340-4e9b-8c09-22376492176f" width="300" />
+
+<img src="https://github.com/user-attachments/assets/ff45edd1-489e-4192-8d1a-27fb90a15fd0" width="300" />
+
+<img src="https://github.com/user-attachments/assets/881c4d17-b156-4f18-b11e-c0c0244134d6" width="300" />
 
 ---
 
@@ -31,7 +37,7 @@ Deployed via Docker + Render/AWS ECS ☁️
 
 ## Tech Stack
 
-### 🔙 Backend (FastAPI)
+### Backend (FastAPI)
 - Python 3.10+
 - FastAPI
 - PyTorch
@@ -39,7 +45,7 @@ Deployed via Docker + Render/AWS ECS ☁️
 - Uvicorn + Gunicorn
 - Dockerized + Deployable to AWS ECR/ECS or Render
 
-### 📱 Frontend (iOS)
+### Frontend (iOS)
 - Swift
 - SwiftUI
 - MVVM
@@ -57,7 +63,7 @@ Deployed via Docker + Render/AWS ECS ☁️
 
 ---
 
-## 📊 Dataset
+## Dataset
 This project leverages the [`netflix_titles.csv`](https://www.kaggle.com/datasets/shivamb/netflix-shows) dataset, sourced from Kaggle. It contains metadata about Netflix content, including **titles, directors, genres, cast, release years, and descriptions**.
 
 While the deployed recommendation engine uses **real-time data from TMDB**, this dataset was vital during experimentation and model development:
@@ -70,7 +76,7 @@ It laid the groundwork for learning before switching to live TMDB-fetching in pr
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 ```
 RecommenderSystem2/
 ├── api/                 # FastAPI routes
@@ -88,9 +94,9 @@ RecommenderSystem2/
 
 ---
 
-## 🧩 Running Locally
+## Running Locally
 
-### 🔙 Backend (FastAPI)
+### Backend (FastAPI)
 ```bash
 # 1. Create and activate a virtualenv
 python -m venv venv
@@ -126,7 +132,7 @@ docker build -t cinemascope-recsys .
 docker run -d -p 8000:8000 cinemascope-recsys
 ```
 
-### ☁️ Render (Easy Alternative)
+### Render (Easy Alternative)
 - Create a new Web Service
 - Connect GitHub repo
 - Set:
@@ -142,7 +148,7 @@ docker run -d -p 8000:8000 cinemascope-recsys
 
 ---
 
-## ✅ To Do
+## To Do
 - [x] Backend API endpoints
 - [x] Xcode frontend integration
 - [x] Torch model training/inference
@@ -162,8 +168,8 @@ Built as a **portfolio-grade project** to demonstrate expertise in:
 
 ## Author
 **Akin Olusanya**  
-🎓 iOS Engineer | ML Enthusiast | Full-Stack Creator  
-📧 workwithakin@gmail.com  
-🔗 [LinkedIn](https://www.linkedin.com/in/akindeveloper)  
-📁 [GitHub](https://github.com/AkinCodes)
+iOS Engineer | ML Enthusiast | Full-Stack Creator  
+workwithakin@gmail.com  
+[LinkedIn](https://www.linkedin.com/in/akindeveloper)  
+[GitHub](https://github.com/AkinCodes)
 
