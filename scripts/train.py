@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader, TensorDataset
+from pytorch_lightning.loggers import TensorBoardLogger
 import sys
 import os
 import logging
@@ -97,11 +98,14 @@ if __name__ == "__main__":
         save_last=True,
     )
 
+    tensorboard_logger = TensorBoardLogger("lightning_logs", name="dlrm")
+
     trainer = pl.Trainer(
         max_epochs=5,
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
         log_every_n_steps=1,
         enable_checkpointing=True,
+        logger=tensorboard_logger,
         callbacks=[checkpoint_callback],
     )
 
