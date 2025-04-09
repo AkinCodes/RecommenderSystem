@@ -110,6 +110,7 @@ uvicorn api.app:app --reload
 ```
 Visit: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
+
 ### 📱 Frontend (iOS)
 - Open `CinemaScopeAI.xcodeproj` in Xcode
 - In `CinemaScopeAIService.swift`, set:
@@ -120,6 +121,58 @@ Visit: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - GitHub iOS Frontend Repo: [CinemaScopeAI (Frontend)](https://github.com/AkinCodes/CinemaScopeAI)
 
 ---
+
+
+## Training the Model & Visualizing with TensorBoard
+
+CinemaScopeAI includes a **custom training pipeline** powered by **PyTorch Lightning**, with **TensorBoard** support built in for real-time training visualization and performance insights.
+
+---
+
+### Step 1: Train the Model
+
+```bash
+# Activate your virtual environment
+source venv/bin/activate
+
+# Run the training script
+python scripts/train.py
+```
+
+This will:
+
+- Train the DLRM-based recommendation model  
+- Log training & validation loss to `lightning_logs/`  
+- Save model checkpoints for future inference  
+
+---
+
+### Step 2: Launch TensorBoard
+
+```bash
+tensorboard --logdir lightning_logs
+```
+
+Then open the URL shown in your terminal — typically:
+
+- [`http://localhost:6006`](http://localhost:6006)  
+- Or something like [`http://localhost:6008`](http://localhost:6008) if 6006 is in use  
+
+You’ll be able to:
+
+- Visualize **training & validation loss curves**
+- Explore **epoch-by-epoch scalar metrics**
+- Monitor how your model is learning in real time
+
+---
+
+### Pro Tip: Keep It Clean
+
+All logs and checkpoints are excluded from Git via `.gitignore`.  
+You can regenerate them anytime by re-running the training script above.
+
+---
+
 
 ## Deployment
 
@@ -132,7 +185,7 @@ docker build -t cinemascope-recsys .
 docker run -d -p 8000:8000 cinemascope-recsys
 ```
 
-### Render (Easy Alternative)
+### Render
 - Create a new Web Service
 - Connect GitHub repo
 - Set:
@@ -145,15 +198,6 @@ docker run -d -p 8000:8000 cinemascope-recsys
 - Push Docker image to Amazon ECR
 - Use ECS CLI or Console to deploy
 - Auto-scales and generates public endpoint
-
----
-
-## To Do
-- [x] Backend API endpoints
-- [x] Xcode frontend integration
-- [x] Torch model training/inference
-- [x] Docker containerization
-- [x] GitHub Actions (CI)
 
 ---
 
