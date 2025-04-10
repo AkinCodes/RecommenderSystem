@@ -164,6 +164,11 @@ You’ll be able to:
 - Explore **epoch-by-epoch scalar metrics**
 - Monitor how your model is learning in real time
 
+### TensorBoard Screenshots Preview: 
+<img width="300" height="300" alt="Screenshot 2025-04-10 at 08 20 11" src="https://github.com/user-attachments/assets/37b82d80-e7e0-4d9e-af8c-869ee86a1ff0" />
+<img width="300" height="300" alt="Screenshot 2025-04-10 at 08 20 38" src="https://github.com/user-attachments/assets/c7a1fde6-1019-42a2-902a-692779f526d0" />
+<img width="300" height="300" alt="Screenshot 2025-04-10 at 08 21 02" src="https://github.com/user-attachments/assets/a94d0f0e-fa3c-4153-9ca9-b580acc8006c" />
+
 ---
 
 ### Pro Tip: Keep It Clean
