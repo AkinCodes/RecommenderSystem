@@ -178,6 +178,55 @@ You can regenerate them anytime by re-running the training script above.
 
 ---
 
+### Netflix SQL Analysis: Country vs Content Type Breakdown
+
+As part of exploring my SQL and data visualization skills, I performed a detailed analysis using **SQLite + Pandas** to uncover how Netflix content varies across countries.
+
+### 🔍 Objective
+**Which countries have the most Netflix content, and what's the breakdown between Movies and TV Shows in those countries?**
+
+### SQL Query (SQLite)
+```sql
+SELECT 
+    country,
+    type,
+    COUNT(*) AS count
+FROM netflix_titles
+WHERE country IS NOT NULL
+GROUP BY country, type
+HAVING country IN (
+    SELECT country
+    FROM netflix_titles
+    WHERE country IS NOT NULL
+    GROUP BY country
+    ORDER BY COUNT(*) DESC
+    LIMIT 5
+)
+ORDER BY country, type;
+```
+
+### 📈 Visualization
+Using `matplotlib`, I transformed the result into a **stacked bar chart**, showing the split between **TV Shows** and **Movies** per country:
+
+<img width="456" alt="Screenshot 2025-04-10 at 17 56 33" src="https://github.com/user-attachments/assets/fe5ea478-73ca-4c71-8fa7-d6aa8b27c38a" />
+
+<br><br>
+
+**Bonus: Epic Stacked Bar Plot** — Built using Pandas' pivot + Matplotlib for clean, readable comparison across countries.
+
+<img width="1063" alt="Screenshot 2025-04-10 at 17 57 18" src="https://github.com/user-attachments/assets/a921b128-50a5-4d33-8115-f297faef9d40" />
+
+
+
+### Skills Demonstrated
+- SQL aggregation: `COUNT`, `GROUP BY`, `HAVING`, subqueries
+- Data loading, transformation, and analysis with `pandas`
+- Database creation and interaction with `sqlite3`
+- Clean and professional visualization with `matplotlib`
+
+
+---
+
 
 ## Deployment
 
