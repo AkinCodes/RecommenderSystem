@@ -266,7 +266,7 @@ Built as a **portfolio-grade project** to demonstrate expertise in:
 
 ## Author
 **Akin Olusanya**  
-iOS Engineer | ML Enthusiast | Full-Stack Creator  
+iOS Engineer | ML Engineer | Full-Stack Creator  
 workwithakin@gmail.com  
 [LinkedIn](https://www.linkedin.com/in/akindeveloper)  
 [GitHub](https://github.com/AkinCodes)
