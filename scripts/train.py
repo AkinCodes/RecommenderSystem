@@ -1,14 +1,11 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader, TensorDataset
 from pytorch_lightning.loggers import TensorBoardLogger
-import sys
-import os
+from pytorch_lightning.callbacks import ModelCheckpoint
 import logging
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import os
 
 from models.dlrm import DLRMModel
 
@@ -68,25 +65,24 @@ class DLRMTrainer(pl.LightningModule):
 
         optimizers = []
         if optimizer_params:
-            optimizers.append(optim.Adam(optimizer_params, lr=self.lr))
+            optimizers.append(torch.optim.Adam(optimizer_params, lr=self.lr))
         if sparse_params:
-            optimizers.append(optim.SparseAdam(sparse_params, lr=self.lr))
+            optimizers.append(torch.optim.SparseAdam(sparse_params, lr=self.lr))
 
         return optimizers
 
 
 def get_dataloader():
+    """Creates a simple synthetic dataset for training/validation."""
     dataset = TensorDataset(
-        torch.randn(1000, 10),
-        torch.randint(0, 5, (1000, 5)),
-        torch.randint(0, 2, (1000, 1)),
+        torch.randn(1000, 10),  # Continuous features
+        torch.randint(0, 5, (1000, 5)),  # Categorical features
+        torch.randint(0, 2, (1000, 1)),  # Labels
     )
     return DataLoader(dataset, batch_size=32, shuffle=True)
 
 
 if __name__ == "__main__":
-    from pytorch_lightning.callbacks import ModelCheckpoint
-
     logging.basicConfig(level=logging.DEBUG)
 
     checkpoint_callback = ModelCheckpoint(
@@ -113,31 +109,32 @@ if __name__ == "__main__":
         num_features=10, embedding_sizes=[10, 10, 10, 10, 10], mlp_layers=[64, 32, 16]
     )
 
-    # Test Model Forward Pass BEFORE Training
     batch = next(iter(get_dataloader()))
     continuous_features, categorical_features, labels = batch
     output = model(continuous_features, categorical_features)
+    print(f"Forward pass output shape: {output.shape}")
 
-    # Train Model
     trainer.fit(model, get_dataloader())
 
-    # Validation After Training
-    print("Running Validation...")
+    print("Running validation...")
     trainer.validate(model, get_dataloader())
 
-    # Load Model from Checkpoint
+    # Load model from checkpoint if exists
     checkpoint_path = "lightning_logs/checkpoints/dlrm-epoch=04-train_loss=0.65.ckpt"
-    model = DLRMTrainer.load_from_checkpoint(
-        checkpoint_path,
-        num_features=10,
-        embedding_sizes=[10, 10, 10, 10, 10],
-        mlp_layers=[64, 32, 16],
-    )
+    if os.path.exists(checkpoint_path):
+        model = DLRMTrainer.load_from_checkpoint(
+            checkpoint_path,
+            num_features=10,
+            embedding_sizes=[10, 10, 10, 10, 10],
+            mlp_layers=[64, 32, 16],
+        )
 
-    # Run Inference with Loaded Model
-    dataloader = get_dataloader()
-    batch = next(iter(dataloader))
+        # Run inference with the loaded model
+        dataloader = get_dataloader()
+        batch = next(iter(dataloader))
 
-    continuous_features, categorical_features, labels = batch
-    output = model(continuous_features, categorical_features)
-    print(f"Loaded Model Output Shape: {output.shape}")
+        continuous_features, categorical_features, labels = batch
+        output = model(continuous_features, categorical_features)
+        print(f"Loaded model output shape: {output.shape}")
+    else:
+        print(f"Checkpoint not found at {checkpoint_path}")
