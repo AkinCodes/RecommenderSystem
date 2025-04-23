@@ -1,41 +1,42 @@
+import os
 import torch
 import torch.nn as nn
-import os
 
+# Optional: Disable multi-threading and FBGEMM if needed
 torch.set_num_threads(1)
 os.environ["TORCHREC_DISABLE_FBGEMM"] = "1"
 
-import torch
-import torch.nn as nn
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
 
 class DLRMModel(nn.Module):
-    def __init__(self, num_features, embedding_sizes, mlp_layers):
+    def __init__(
+        self, num_continuous_features, embedding_sizes, mlp_layers, debug=False
+    ):
         super(DLRMModel, self).__init__()
 
-        # Linear layer for continuous features
-        self.continuous_layer = nn.Linear(num_features, mlp_layers[0])
+        self.debug = debug
 
-        # Embeddings for categorical features
+        # Linear transformation for continuous features
+        self.continuous_layer = nn.Linear(num_continuous_features, mlp_layers[0])
+
+        # Embeddings for each categorical feature
         self.embeddings = nn.ModuleList(
-            [nn.Embedding(size, mlp_layers[0]) for size in embedding_sizes]
+            [
+                nn.Embedding(num_embeddings, mlp_layers[0])
+                for num_embeddings in embedding_sizes
+            ]
         )
 
-        total_embedding_size = sum([emb.embedding_dim for emb in self.embeddings])
-        mlp_input_dim = self.continuous_layer.out_features + total_embedding_size
+        # Total input dimension to MLP = transformed continuous + sum of all embedding dims
+        total_embedding_dim = sum(emb.embedding_dim for emb in self.embeddings)
+        mlp_input_dim = self.continuous_layer.out_features + total_embedding_dim
 
+        # Build the MLP layers
         layers = [nn.Linear(mlp_input_dim, mlp_layers[1]), nn.ReLU()]
-
         for i in range(1, len(mlp_layers) - 1):
-            layers.append(nn.Linear(mlp_layers[i], mlp_layers[i + 1]))
-            layers.append(nn.ReLU())
-
+            layers += [nn.Linear(mlp_layers[i], mlp_layers[i + 1]), nn.ReLU()]
         self.mlp = nn.Sequential(*layers)
 
+        # Final output layer
         self.output_layer = nn.Linear(mlp_layers[-1], 1)
         self.sigmoid = nn.Sigmoid()
 
@@ -45,32 +46,32 @@ class DLRMModel(nn.Module):
 
         x = self.continuous_layer(continuous_features)
 
-        batch_size, num_categorical_features = categorical_features.shape
-        if num_categorical_features > len(self.embeddings):
+        if categorical_features.shape[1] > len(self.embeddings):
             raise ValueError(
-                f"🛑 Too many categorical features: {num_categorical_features}, expected {len(self.embeddings)}"
+                f"🛑 Too many categorical features: {categorical_features.shape[1]}, "
+                f"expected {len(self.embeddings)}"
             )
 
-        offsets = torch.zeros_like(categorical_features[:, 0])
-
+        # Embed categorical features
         cat_embeds = [
             emb(categorical_features[:, i])
-            for i, emb in enumerate(self.embeddings[:num_categorical_features])
+            for i, emb in enumerate(self.embeddings[: categorical_features.shape[1]])
         ]
 
-        print(f"🔵 Continuous Features Shape: {x.shape}")
-        print(f"🔵 Number of categorical embeddings: {len(cat_embeds)}")
-        print(f"🔵 Categorical Embeddings Shapes: {[e.shape for e in cat_embeds]}")
-        print(f"🔵 Total Embedding Size: {sum(e.shape[-1] for e in cat_embeds)}")
-        print(f"🔵 Expected Input Size for MLP: {self.mlp[0].in_features}")
+        # Optional debug information
+        if self.debug:
+            print(f"🔵 Continuous Shape: {x.shape}")
+            print(f"🔵 Embedding Shapes: {[e.shape for e in cat_embeds]}")
+            print(
+                f"🔵 Combined Input Size: {x.shape[-1] + sum(e.shape[-1] for e in cat_embeds)}"
+            )
 
+        # Concatenate continuous and embedded categorical features
         x = torch.cat([x] + cat_embeds, dim=1)
-
-        print(f"🔵 Shape of input to MLP: {x.shape}")
 
         if x.shape[-1] != self.mlp[0].in_features:
             raise ValueError(
-                f"🛑 Shape mismatch: Expected {self.mlp[0].in_features}, but got {x.shape[-1]}"
+                f"🛑 Shape mismatch: Expected {self.mlp[0].in_features}, got {x.shape[-1]}"
             )
 
         x = self.mlp(x)

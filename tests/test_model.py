@@ -1,6 +1,5 @@
 import torch
 from models.dlrm import DLRMModel
-
 import sys
 import os
 
