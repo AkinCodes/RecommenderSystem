@@ -14,11 +14,7 @@ class DLRMModel(nn.Module):
         super(DLRMModel, self).__init__()
 
         self.debug = debug
-
-        # Linear transformation for continuous features
         self.continuous_layer = nn.Linear(num_continuous_features, mlp_layers[0])
-
-        # Embeddings for each categorical feature
         self.embeddings = nn.ModuleList(
             [
                 nn.Embedding(num_embeddings, mlp_layers[0])
@@ -26,17 +22,14 @@ class DLRMModel(nn.Module):
             ]
         )
 
-        # Total input dimension to MLP = transformed continuous + sum of all embedding dims
         total_embedding_dim = sum(emb.embedding_dim for emb in self.embeddings)
         mlp_input_dim = self.continuous_layer.out_features + total_embedding_dim
 
-        # Build the MLP layers
         layers = [nn.Linear(mlp_input_dim, mlp_layers[1]), nn.ReLU()]
         for i in range(1, len(mlp_layers) - 1):
             layers += [nn.Linear(mlp_layers[i], mlp_layers[i + 1]), nn.ReLU()]
         self.mlp = nn.Sequential(*layers)
 
-        # Final output layer
         self.output_layer = nn.Linear(mlp_layers[-1], 1)
         self.sigmoid = nn.Sigmoid()
 
