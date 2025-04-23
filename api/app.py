@@ -51,15 +51,15 @@ def fetch_real_movies():
     return [
         {
             "title": movie["title"],
-            "genre": "Unknown",  # Replace with actual genre logic if available
-            "rating": "N/A",  # Add real rating logic
+            "genre": "Unknown",
+            "rating": "N/A",
             "score": movie["vote_average"] / 10,
             "poster_url": (
                 f"https://image.tmdb.org/t/p/w500{movie['poster_path']}"
                 if movie.get("poster_path")
                 else "https://via.placeholder.com/500"
             ),
-            "director": "N/A",  # Add director info if available
+            "director": "N/A",
             "release_year": (
                 int(movie["release_date"].split("-")[0])
                 if movie.get("release_date")
