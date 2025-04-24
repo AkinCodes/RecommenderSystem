@@ -1,5 +1,4 @@
 import torch
-from models.dlrm import DLRMModel
 import sys
 import os
 
@@ -9,7 +8,9 @@ from models.dlrm import DLRMModel
 
 def test_dlrm_forward():
     model = DLRMModel(
-        num_features=10, embedding_sizes=[10, 10, 10, 10, 10], mlp_layers=[64, 32, 16]
+        num_continuous_features=10,
+        embedding_sizes=[10, 10, 10, 10, 10],
+        mlp_layers=[64, 32, 16],
     )
 
     continuous_features = torch.randn(1, 10)
@@ -23,3 +24,4 @@ def test_dlrm_forward():
 
 if __name__ == "__main__":
     test_dlrm_forward()
+    print("✅ DLRM forward test passed successfully!")
