@@ -18,7 +18,7 @@ def test_dlrm_forward():
 
     output = model(continuous_features, categorical_features)
 
-    assert output.shape == torch.Size([1, 1]), ""
+    assert output.shape == torch.Size([1, 1]), "❌ Output should be between 0 and 1!"
     assert 0 <= output.item() <= 1, ""
 
 
