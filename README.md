@@ -182,7 +182,7 @@ You can regenerate them anytime by re-running the training script above.
 
 As part of exploring my SQL and data visualization skills, I performed a detailed analysis using **SQLite + Pandas** to uncover how Netflix content varies across countries.
 
-### 🔍 Objective
+### Objective
 **Which countries have the most Netflix content, and what's the breakdown between Movies and TV Shows in those countries?**
 
 ### SQL Query (SQLite)
