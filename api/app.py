@@ -9,10 +9,7 @@ from dotenv import load_dotenv
 from models.dlrm import DLRMModel
 import uvicorn
 
-# Setup Logging
 logging.basicConfig(level=logging.INFO)
-
-# Load environment variables from .env file
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # FastAPI App Setup
@@ -71,18 +68,22 @@ def fetch_real_movies():
     ]
 
 
-# --- Request and Response Models ---
-class PredictionRequest(BaseModel):
-    """Request model for prediction."""
+# --- Request Model for Human Input ---
+class UserMovieInput(BaseModel):
+    """User-facing input for movie recommendations."""
 
-    continuous_features: List[float]
-    categorical_features: List[int]
+    release_year: int
+    duration_text: str  # e.g. "2 Seasons", "90 min"
+    type: str  # "Movie" or "TV Show"
+    rating: str  # "PG", "R", "TV-MA", etc.
 
     class Config:
         schema_extra = {
             "example": {
-                "continuous_features": [0.6, 0.8],
-                "categorical_features": [1, 7],
+                "release_year": 1999,
+                "duration_text": "2 Seasons",
+                "type": "TV Show",
+                "rating": "PG-13",
             }
         }
 
@@ -103,14 +104,14 @@ class RecommendationResponse(BaseModel):
 # --- Model Loading ---
 num_continuous_features = 2
 num_categorical_features = 2
-num_genres = 73
-embedding_sizes = [2, 18] + [2] * num_genres
+embedding_sizes = [2, 18]  # Match training exactly
 
 model = DLRMModel(
     num_continuous_features=num_continuous_features,
     embedding_sizes=embedding_sizes,
     mlp_layers=[64, 32, 16],
 )
+
 
 # Load the model state
 try:
@@ -130,66 +131,60 @@ async def root():
     return {"message": "Recommendation API is running!"}
 
 
-@app.post(
-    "/predict/",
-    summary="Get Movie Recommendations",
-    description=(
-        "**Valid Index Ranges:**\n"
-        "- `categorical_features[0]`: 0 - 1 (gender)\n"
-        "- `categorical_features[1]`: 0 - 17 (age bucket)\n"
-        "- You must provide exactly 2 categorical features.\n\n"
-        "**Note:** The model will internally pad genre indexes (73 extra dimensions)."
-    ),
-    response_model=Dict[str, Any],
-    tags=["Inference"],
-)
-async def predict(request: PredictionRequest) -> Dict[str, Any]:
-    """Endpoint to get movie recommendations based on user features."""
+from scripts.preprocessing import load_and_apply_scaler, load_encoders
 
-    # Validate input features
-    if len(request.categorical_features) != num_categorical_features:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Expected {num_categorical_features} categorical features.",
-        )
 
-    if request.categorical_features[0] > 1:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Feature 0 index {request.categorical_features[0]} out of range (max allowed is 1).",
-        )
-    if request.categorical_features[1] > 17:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Feature 1 index {request.categorical_features[1]} out of range (max allowed is 17).",
-        )
+def parse_duration(val: str) -> int:
+    try:
+        return int(val.split(" ")[0])
+    except:
+        return 0
 
-    # Pad genre features and convert to tensor
-    full_categorical_features = request.categorical_features + [0] * num_genres
-    continuous_tensor = torch.tensor([request.continuous_features], dtype=torch.float32)
-    categorical_tensor = torch.tensor([full_categorical_features], dtype=torch.int64)
 
-    # Predict score using model
+@app.post("/predict/", tags=["Inference"])
+async def predict_user_input(input: UserMovieInput):
+    try:
+        type_encoder, rating_encoder = load_encoders()
+    except Exception as e:
+        logging.error(f"Failed to load encoders: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load encoders")
+
+    duration = parse_duration(input.duration_text)
+    try:
+        norm_cont = load_and_apply_scaler(input.release_year, duration)
+    except Exception as e:
+        logging.error(f"Scaler load/transform error: {e}")
+        raise HTTPException(status_code=500, detail="Scaler error")
+
+    continuous_tensor = torch.tensor([norm_cont], dtype=torch.float32)
+
+    try:
+        type_index = int(type_encoder.transform([input.type])[0])
+        rating_index = int(rating_encoder.transform([input.rating])[0])
+    except Exception as e:
+        logging.error(f"Encoding error: {e}")
+        raise HTTPException(status_code=400, detail="Invalid 'type' or 'rating' input.")
+
+    full_cat = [type_index, rating_index]
+    categorical_tensor = torch.tensor([full_cat], dtype=torch.int64)
+
     try:
         prediction_score = model(continuous_tensor, categorical_tensor).item()
     except Exception as e:
-        logging.error(f"Error during model prediction: {e}")
+        logging.error(f"Model inference error: {e}")
         raise HTTPException(status_code=500, detail="Model prediction failed.")
 
-    # Fetch real movie data
-    MOVIE_DATABASE = fetch_real_movies()
-    if not MOVIE_DATABASE:
-        raise HTTPException(status_code=500, detail="Failed to fetch movies from TMDB.")
+    # Get movies and return results
+    movies = fetch_real_movies()
+    if not movies:
+        raise HTTPException(status_code=500, detail="Failed to fetch movies.")
 
-    # Sort and return the top 5 closest recommendations based on predicted score
-    recommended_movies = sorted(
-        MOVIE_DATABASE, key=lambda x: abs(x["score"] - prediction_score), reverse=True
+    recommendations = sorted(
+        movies, key=lambda x: abs(x["score"] - prediction_score), reverse=True
     )
+    return {"recommendations": recommendations[:5]}
 
-    return {"recommendations": recommended_movies[:5]}
 
-
-# Run the app
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
