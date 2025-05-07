@@ -25,9 +25,10 @@ TMDB_BEARER_TOKEN = os.getenv("TMDB_BEARER_TOKEN")
 
 
 # --- Movie Fetcher Function ---
-def fetch_real_movies():
-    """Fetch movie data from TMDB API."""
-    url = f"https://api.themoviedb.org/3/movie/popular?language=en-US&page=1"
+def fetch_real_movies(content_type: str):
+    """Fetch movie or TV data from TMDB API based on type."""
+    endpoint = "tv" if content_type.lower() == "tv show" else "movie"
+    url = f"https://api.themoviedb.org/3/{endpoint}/popular?language=en-US&page=1"
     headers = {
         "Authorization": f"Bearer {TMDB_BEARER_TOKEN}",
         "accept": "application/json",
@@ -47,10 +48,10 @@ def fetch_real_movies():
 
     return [
         {
-            "title": movie["title"],
+            "title": movie.get("title") or movie.get("name", "Untitled"),
             "genre": "Unknown",
             "rating": "N/A",
-            "score": movie["vote_average"] / 10,
+            "score": movie.get("vote_average", 0) / 10,
             "poster_url": (
                 f"https://image.tmdb.org/t/p/w500{movie['poster_path']}"
                 if movie.get("poster_path")
@@ -60,9 +61,13 @@ def fetch_real_movies():
             "release_year": (
                 int(movie["release_date"].split("-")[0])
                 if movie.get("release_date")
-                else "Unknown"
+                else (
+                    int(movie["first_air_date"].split("-")[0])
+                    if movie.get("first_air_date")
+                    else "Unknown"
+                )
             ),
-            "summary": movie["overview"],
+            "summary": movie.get("overview", "No summary available."),
         }
         for movie in movies
     ]
@@ -175,7 +180,7 @@ async def predict_user_input(input: UserMovieInput):
         raise HTTPException(status_code=500, detail="Model prediction failed.")
 
     # Get movies and return results
-    movies = fetch_real_movies()
+    movies = fetch_real_movies(input.type)
     if not movies:
         raise HTTPException(status_code=500, detail="Failed to fetch movies.")
 
