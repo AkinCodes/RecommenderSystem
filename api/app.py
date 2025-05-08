@@ -14,7 +14,7 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # FastAPI App Setup
 app = FastAPI(
-    title="CinemaScopeAI 🎬",
+    title="CinemaScopeAI",
     description="AI-powered movie recommendation API using DLRM + TMDB",
     version="1.0.0",
 )
@@ -25,32 +25,54 @@ TMDB_BEARER_TOKEN = os.getenv("TMDB_BEARER_TOKEN")
 
 
 # --- Movie Fetcher Function ---
-def fetch_real_movies(content_type: str):
-    """Fetch movie or TV data from TMDB API based on type."""
+def fetch_real_movies(content_type: str, release_year: int, rating: str):
+    """Fetch movie or TV show data using TMDB Discover API, filtered by user input."""
     endpoint = "tv" if content_type.lower() == "tv show" else "movie"
-    url = f"https://api.themoviedb.org/3/{endpoint}/popular?language=en-US&page=1"
+    url = f"https://api.themoviedb.org/3/discover/{endpoint}"
+
+    # Common query parameters
+    params = {
+        "language": "en-US",
+        "sort_by": "popularity.desc",
+        "page": 1,
+    }
+
+    # Conditional filters
+    if endpoint == "movie":
+        params["certification_country"] = "US"
+        params["certification"] = rating
+        params["primary_release_year"] = release_year
+    else:
+        params["first_air_date_year"] = release_year
+
+    # Headers
     headers = {
         "Authorization": f"Bearer {TMDB_BEARER_TOKEN}",
         "accept": "application/json",
     }
 
-    response = requests.get(url, headers=headers)
+    logging.info(f"🟢 TMDB request URL: {url}")
+    logging.info(f"🟢 TMDB request params: {params}")
+    logging.info(f"🟢 TMDB headers: {headers}")
 
+    # Request
+    response = requests.get(url, headers=headers, params=params)
     if response.status_code != 200:
         logging.error(f"TMDB API Error: {response.status_code} {response.text}")
         return []
 
+    # Parse and transform results
     try:
-        movies = response.json().get("results", [])
+        raw_results = response.json().get("results", [])
     except Exception as e:
         logging.error(f"Error parsing TMDB response: {e}")
         return []
 
-    return [
+    movies = [
         {
             "title": movie.get("title") or movie.get("name", "Untitled"),
             "genre": "Unknown",
-            "rating": "N/A",
+            "rating": rating,
             "score": movie.get("vote_average", 0) / 10,
             "poster_url": (
                 f"https://image.tmdb.org/t/p/w500{movie['poster_path']}"
@@ -59,21 +81,20 @@ def fetch_real_movies(content_type: str):
             ),
             "director": "N/A",
             "release_year": (
-                int(movie["release_date"].split("-")[0])
-                if movie.get("release_date")
-                else (
-                    int(movie["first_air_date"].split("-")[0])
-                    if movie.get("first_air_date")
-                    else "Unknown"
-                )
+                int(movie.get("release_date", "0000").split("-")[0])
+                if endpoint == "movie"
+                else int(movie.get("first_air_date", "0000").split("-")[0])
             ),
             "summary": movie.get("overview", "No summary available."),
         }
-        for movie in movies
+        for movie in raw_results
     ]
 
+    movies = [m for m in movies if m["score"] > 0]
+    return movies
 
-# --- Request Model for Human Input ---
+
+# --- Request Model ---
 class UserMovieInput(BaseModel):
     """User-facing input for movie recommendations."""
 
@@ -109,7 +130,7 @@ class RecommendationResponse(BaseModel):
 # --- Model Loading ---
 num_continuous_features = 2
 num_categorical_features = 2
-embedding_sizes = [2, 18]  # Match training exactly
+embedding_sizes = [2, 18]
 
 model = DLRMModel(
     num_continuous_features=num_continuous_features,
@@ -180,7 +201,8 @@ async def predict_user_input(input: UserMovieInput):
         raise HTTPException(status_code=500, detail="Model prediction failed.")
 
     # Get movies and return results
-    movies = fetch_real_movies(input.type)
+    movies = fetch_real_movies(input.type, input.release_year, input.rating)
+
     if not movies:
         raise HTTPException(status_code=500, detail="Failed to fetch movies.")
 
