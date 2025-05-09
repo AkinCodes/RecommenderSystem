@@ -104,7 +104,7 @@ class UserMovieInput(BaseModel):
     rating: str  # "PG", "R", "TV-MA", etc.
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "release_year": 1999,
                 "duration_text": "2 Seasons",
