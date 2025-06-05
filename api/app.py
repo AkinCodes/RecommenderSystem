@@ -141,7 +141,9 @@ model = DLRMModel(
 
 # Load the model state
 try:
-    state_dict = torch.load("trained_model.pth", map_location=torch.device("cpu"))
+    state_dict = torch.load(
+        "trained_model.pth", map_location=torch.device("cpu"), weights_only=True
+    )
     model.load_state_dict(state_dict)
     model.eval()
     logging.info("Model loaded successfully.")
