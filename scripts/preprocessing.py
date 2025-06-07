@@ -9,6 +9,9 @@ TYPE_ENCODER_PATH = "scripts/type_encoder.pkl"
 RATING_ENCODER_PATH = "scripts/rating_encoder.pkl"
 
 
+# --- CONTINUOUS FEATURES SCALING ---
+
+
 def fit_and_save_scaler(release_years, durations):
     """Fit and save the StandardScaler for continuous features."""
     data = np.stack([release_years, durations], axis=1)
@@ -19,15 +22,16 @@ def fit_and_save_scaler(release_years, durations):
 
 
 def load_and_apply_scaler(release_year, duration):
-    """Load saved scaler and apply to one input."""
+    """Load saved scaler and apply to one input. Returns float32 NumPy array with shape (2,)."""
     if not os.path.exists(SCALER_PATH):
         raise FileNotFoundError("Scaler not found. Run fit_and_save_scaler first.")
+
     scaler = joblib.load(SCALER_PATH)
-    scaled = scaler.transform([[release_year, duration]])
-    return scaled[0]
+    scaled = scaler.transform([[release_year, duration]])  # shape: (1, 2)
+    return scaled.astype(np.float32).squeeze()  # shape: (2,), dtype: float32
 
 
-# --- ENCODERS ---
+# --- CATEGORICAL FEATURES ENCODING ---
 
 
 def fit_and_save_encoders(types, ratings):
