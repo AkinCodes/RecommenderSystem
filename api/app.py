@@ -1,7 +1,8 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Dict, Any
 import torch
+import numpy as np
 import requests
 import os
 import logging
@@ -96,15 +97,13 @@ def fetch_real_movies(content_type: str, release_year: int, rating: str):
 
 # --- Request Model ---
 class UserMovieInput(BaseModel):
-    """User-facing input for movie recommendations."""
-
     release_year: int
-    duration_text: str  # e.g. "2 Seasons", "90 min"
-    type: str  # "Movie" or "TV Show"
-    rating: str  # "PG", "R", "TV-MA", etc.
+    duration_text: str
+    type: str
+    rating: str
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "release_year": 1999,
                 "duration_text": "2 Seasons",
@@ -112,6 +111,7 @@ class UserMovieInput(BaseModel):
                 "rating": "PG-13",
             }
         }
+    )
 
 
 class RecommendationResponse(BaseModel):
@@ -162,11 +162,46 @@ async def root():
 from scripts.preprocessing import load_and_apply_scaler, load_encoders
 
 
+import re
+
+
 def parse_duration(val: str) -> int:
-    try:
-        return int(val.split(" ")[0])
-    except:
+    """
+    Parses a duration string and returns a normalized integer duration value in minutes or episodes.
+
+    Examples:
+    - '2 Seasons' → 20  (assuming 10 episodes/season)
+    - '90 min'    → 90
+    - '1h 30m'    → 90
+    - '1 Season'  → 10
+    - '2h'        → 120
+    """
+    if not val or not isinstance(val, str):
         return 0
+
+    val = val.lower().strip()
+
+    # Handle "X Seasons"
+    if "season" in val:
+        match = re.search(r"(\d+)", val)
+        return int(match.group(1)) * 10 if match else 0
+
+    # Handle "1h 30m" style
+    hour_match = re.search(r"(\d+)\s*h", val)
+    min_match = re.search(r"(\d+)\s*m", val)
+
+    total_minutes = 0
+    if hour_match:
+        total_minutes += int(hour_match.group(1)) * 60
+    if min_match:
+        total_minutes += int(min_match.group(1))
+
+    if total_minutes > 0:
+        return total_minutes
+
+    # Handle fallback "90 min" or single number
+    match = re.search(r"(\d+)", val)
+    return int(match.group(1)) if match else 0
 
 
 @app.post("/predict/", tags=["Inference"])
@@ -180,11 +215,12 @@ async def predict_user_input(input: UserMovieInput):
     duration = parse_duration(input.duration_text)
     try:
         norm_cont = load_and_apply_scaler(input.release_year, duration)
+
     except Exception as e:
         logging.error(f"Scaler load/transform error: {e}")
         raise HTTPException(status_code=500, detail="Scaler error")
 
-    continuous_tensor = torch.tensor([norm_cont], dtype=torch.float32)
+    continuous_tensor = torch.from_numpy(norm_cont).unsqueeze(0)
 
     try:
         type_index = int(type_encoder.transform([input.type])[0])
