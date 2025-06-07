@@ -8,6 +8,7 @@ import os
 import logging
 from dotenv import load_dotenv
 from models.dlrm import DLRMModel
+import re
 import uvicorn
 
 logging.basicConfig(level=logging.INFO)
@@ -160,9 +161,6 @@ async def root():
 
 
 from scripts.preprocessing import load_and_apply_scaler, load_encoders
-
-
-import re
 
 
 def parse_duration(val: str) -> int:
