@@ -166,16 +166,6 @@ import re
 
 
 def parse_duration(val: str) -> int:
-    """
-    Parses a duration string and returns a normalized integer duration value in minutes or episodes.
-
-    Examples:
-    - '2 Seasons' → 20  (assuming 10 episodes/season)
-    - '90 min'    → 90
-    - '1h 30m'    → 90
-    - '1 Season'  → 10
-    - '2h'        → 120
-    """
     if not val or not isinstance(val, str):
         return 0
 
