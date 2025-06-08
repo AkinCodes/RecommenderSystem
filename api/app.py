@@ -154,13 +154,7 @@ except Exception as e:
     raise RuntimeError(f"❌ Failed to load model: {e}")
 
 
-# --- Routes ---
-@app.get("/", tags=["Health"])
-async def root():
-    """Health check endpoint."""
-    return {"message": "Recommendation API is running!"}
-
-
+# Convert strings like "2 Seasons", "90 min", or "1h 30m" to estimated duration in minutes
 def parse_duration(val: str) -> int:
     if not val or not isinstance(val, str):
         return 0
@@ -188,6 +182,13 @@ def parse_duration(val: str) -> int:
     # Handle fallback "90 min" or single number
     match = re.search(r"(\d+)", val)
     return int(match.group(1)) if match else 0
+
+
+# --- Routes ---
+@app.get("/", tags=["Health"])
+async def root():
+    """Health check endpoint."""
+    return {"message": "Recommendation API is running!"}
 
 
 @app.post("/predict/", tags=["Inference"])
