@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict
+from scripts.preprocessing import load_and_apply_scaler, load_encoders
 from typing import List, Dict, Any
 import torch
 import numpy as np
@@ -158,9 +159,6 @@ except Exception as e:
 async def root():
     """Health check endpoint."""
     return {"message": "Recommendation API is running!"}
-
-
-from scripts.preprocessing import load_and_apply_scaler, load_encoders
 
 
 def parse_duration(val: str) -> int:
