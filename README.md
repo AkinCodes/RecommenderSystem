@@ -485,5 +485,4 @@ aws ecs update-service --cluster your-cluster --service your-service --force-new
 
 **Akin Olusanya**
 
-[![GitHub](https://img.shields.io/badge/GitHub-AkinCodes-181717?logo=github)](https://github.com/AkinCodes)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Akin%20Olusanya-0A66C2?logo=linkedin)](https://www.linkedin.com/in/akindeveloper/)
+[LinkedIn](https://www.linkedin.com/in/akindeveloper/) · [GitHub](https://github.com/AkinCodes) · workwithakin@gmail.com
