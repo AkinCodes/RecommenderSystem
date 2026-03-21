@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from sklearn.metrics import roc_auc_score
+import wandb
 
 # Ensure project root is on path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -219,6 +220,24 @@ def main():
     print("DLRM Training on MovieLens 100K")
     print("=" * 60)
 
+    # Initialise Weights & Biases
+    wandb.init(
+        project="recommender-system",
+        entity="workwithakin-akin-olusanya",
+        config={
+            "model": "DLRM",
+            "dataset": "MovieLens-100K",
+            "num_features": NUM_FEATURES,
+            "embedding_sizes": EMBEDDING_SIZES,
+            "mlp_layers": MLP_LAYERS,
+            "epochs": EPOCHS,
+            "batch_size": BATCH_SIZE,
+            "learning_rate": LR,
+            "device": DEVICE,
+            "top_k": K,
+        },
+    )
+
     # Load and prepare data
     print("\n[1/4] Loading data...")
     raw = load_data()
@@ -267,6 +286,7 @@ def main():
             epoch_loss += loss.item()
             n_batches += 1
         avg_loss = epoch_loss / n_batches
+        wandb.log({"train_loss": avg_loss, "epoch": epoch})
         print(f"  Epoch {epoch:2d}/{EPOCHS} — train loss: {avg_loss:.6f}")
     train_time = time.time() - train_start
     print(f"  Training completed in {train_time:.1f}s")
@@ -334,6 +354,31 @@ def main():
     print(f"  AUC:          {metrics['AUC']:.4f}")
     print(f"  Latency:      {np.mean(latencies):.3f} ms (mean), {np.percentile(latencies, 95):.3f} ms (p95)")
     print("=" * 60)
+
+    # Log evaluation metrics to W&B
+    wandb.log({
+        "ndcg_at_10": metrics["NDCG@10"],
+        "precision_at_10": metrics["Precision@10"],
+        "recall_at_10": metrics["Recall@10"],
+        "hit_rate_at_10": metrics["HitRate@10"],
+        "auc": metrics["AUC"],
+        "num_eval_users": metrics["num_eval_users"],
+    })
+
+    # Log inference latency to W&B
+    wandb.log({
+        "inference_ms_mean": float(np.mean(latencies)),
+        "inference_ms_median": float(np.median(latencies)),
+        "inference_ms_p95": float(np.percentile(latencies, 95)),
+        "inference_ms_p99": float(np.percentile(latencies, 99)),
+    })
+
+    # Log the model as a W&B artifact
+    artifact = wandb.Artifact("dlrm-movielens", type="model")
+    artifact.add_file(MODEL_SAVE_PATH)
+    wandb.log_artifact(artifact)
+
+    wandb.finish()
 
 
 if __name__ == "__main__":
