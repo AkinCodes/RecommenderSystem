@@ -1,124 +1,113 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, ConfigDict
-from scripts.preprocessing import load_and_apply_scaler, load_encoders
-from typing import List, Dict, Any
-import torch
-import numpy as np
-import requests
-import os
+"""CinemaScopeAI Recommender API.
+
+Provides movie recommendation endpoints powered by a DLRM model and the TMDB API.
+"""
+
 import logging
+import os
+import time
+
+import httpx
+import torch
+import yaml
 from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
 from models.dlrm import DLRMModel
-import re
-import uvicorn
 
-logging.basicConfig(level=logging.INFO)
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
 
-# FastAPI App Setup
-app = FastAPI(
-    title="CinemaScopeAI",
-    description="AI-powered movie recommendation API using DLRM + TMDB",
-    version="1.0.0",
+load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+logger = logging.getLogger(__name__)
 
-# TMDB API Keys
+APP_VERSION = "1.0.0"
+
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 TMDB_BEARER_TOKEN = os.getenv("TMDB_BEARER_TOKEN")
 
-
-# --- Movie Fetcher Function ---
-def fetch_real_movies(content_type: str, release_year: int, rating: str):
-    """Fetch movie or TV show data using TMDB Discover API, filtered by user input."""
-    endpoint = "tv" if content_type.lower() == "tv show" else "movie"
-    url = f"https://api.themoviedb.org/3/discover/{endpoint}"
-
-    # Common query parameters
-    params = {
-        "language": "en-US",
-        "sort_by": "popularity.desc",
-        "page": 1,
-    }
-
-    # Conditional filters
-    if endpoint == "movie":
-        params["certification_country"] = "US"
-        params["certification"] = rating
-        params["primary_release_year"] = release_year
-    else:
-        params["first_air_date_year"] = release_year
-
-    # Headers
-    headers = {
-        "Authorization": f"Bearer {TMDB_BEARER_TOKEN}",
-        "accept": "application/json",
-    }
-
-    logging.info(f"🟢 TMDB request URL: {url}")
-    logging.info(f"🟢 TMDB request params: {params}")
-    logging.info(f"🟢 TMDB headers: {headers}")
-
-    # Request
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code != 200:
-        logging.error(f"TMDB API Error: {response.status_code} {response.text}")
-        return []
-
-    # Parse and transform results
-    try:
-        raw_results = response.json().get("results", [])
-    except Exception as e:
-        logging.error(f"Error parsing TMDB response: {e}")
-        return []
-
-    movies = [
-        {
-            "title": movie.get("title") or movie.get("name", "Untitled"),
-            "genre": "Unknown",
-            "rating": rating,
-            "score": movie.get("vote_average", 0) / 10,
-            "poster_url": (
-                f"https://image.tmdb.org/t/p/w500{movie['poster_path']}"
-                if movie.get("poster_path")
-                else "https://via.placeholder.com/500"
-            ),
-            "director": "N/A",
-            "release_year": (
-                int(movie.get("release_date", "0000").split("-")[0])
-                if endpoint == "movie"
-                else int(movie.get("first_air_date", "0000").split("-")[0])
-            ),
-            "summary": movie.get("overview", "No summary available."),
-        }
-        for movie in raw_results
-    ]
-
-    movies = [m for m in movies if m["score"] > 0]
-    return movies
-
-
-# --- Request Model ---
-class UserMovieInput(BaseModel):
-    release_year: int
-    duration_text: str
-    type: str
-    rating: str
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "release_year": 1999,
-                "duration_text": "2 Seasons",
-                "type": "TV Show",
-                "rating": "PG-13",
-            }
-        }
+if not TMDB_API_KEY or not TMDB_BEARER_TOKEN:
+    logger.warning(
+        "TMDB_API_KEY or TMDB_BEARER_TOKEN not set. "
+        "Movie fetching will fail until they are configured."
     )
 
 
-class RecommendationResponse(BaseModel):
-    """Response model for movie recommendations."""
+class TMDBError(Exception):
+    """Raised when the TMDB API returns an error."""
 
+
+class ModelInputError(Exception):
+    """Raised when prediction input is invalid."""
+
+
+# ---------------------------------------------------------------------------
+# Load and validate config from YAML
+# ---------------------------------------------------------------------------
+
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "configs", "config.yaml")
+
+REQUIRED_CONFIG_KEYS = {
+    "model": ["num_features", "embedding_sizes", "mlp_layers", "learning_rate", "epochs", "batch_size"],
+}
+
+
+def load_and_validate_config(path: str) -> dict:
+    """Load YAML config and validate that all required keys are present."""
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Configuration file not found: {path}")
+
+    with open(path, "r") as f:
+        cfg = yaml.safe_load(f)
+
+    if cfg is None:
+        raise ValueError("Configuration file is empty.")
+
+    for section, keys in REQUIRED_CONFIG_KEYS.items():
+        if section not in cfg:
+            raise ValueError(f"Missing required config section: '{section}'")
+        for key in keys:
+            if key not in cfg[section]:
+                raise ValueError(f"Missing required config key: '{section}.{key}'")
+
+    return cfg
+
+
+try:
+    config = load_and_validate_config(CONFIG_PATH)
+    model_cfg = config["model"]
+    logger.info("Configuration loaded and validated successfully.")
+    logger.info(
+        "Effective config: model.num_features=%s, model.mlp_layers=%s, "
+        "model.epochs=%s, model.batch_size=%s",
+        model_cfg["num_features"],
+        model_cfg["mlp_layers"],
+        model_cfg["epochs"],
+        model_cfg["batch_size"],
+    )
+except (FileNotFoundError, ValueError) as exc:
+    logger.error("Configuration error: %s", exc)
+    raise SystemExit(1) from exc
+
+# ---------------------------------------------------------------------------
+# Request / response schemas
+# ---------------------------------------------------------------------------
+
+
+class PredictionRequest(BaseModel):
+    continuous_features: list[float]
+    categorical_features: list[int]
+
+
+class RecommendationResponse(BaseModel):
     title: str
     genre: str
     rating: str
@@ -129,114 +118,276 @@ class RecommendationResponse(BaseModel):
     summary: str
 
 
-# --- Model Loading ---
+class ErrorResponse(BaseModel):
+    success: bool = False
+    error: str
+    detail: str
+
+
+class HealthResponse(BaseModel):
+    status: str
+    model_loaded: bool
+    version: str
+
+
+class ModelInfoResponse(BaseModel):
+    architecture: str
+    num_parameters: int
+    device: str
+    num_continuous_features: int
+    num_categorical_features: int
+    mlp_layers: list[int]
+
+
+# ---------------------------------------------------------------------------
+# Model loading
+# ---------------------------------------------------------------------------
+
 num_continuous_features = 2
 num_categorical_features = 2
-embedding_sizes = [2, 18]
+num_genres = 73
+embedding_sizes = [2, 18] + [2] * num_genres
 
-model = DLRMModel(
-    num_continuous_features=num_continuous_features,
-    embedding_sizes=embedding_sizes,
-    mlp_layers=[64, 32, 16],
-)
+model_loaded = False
+model: DLRMModel | None = None
 
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "trained_model.pth")
 
-# Load the model state
 try:
-    state_dict = torch.load(
-        "trained_model.pth", map_location=torch.device("cpu"), weights_only=True
+    model = DLRMModel(
+        num_features=num_continuous_features,
+        embedding_sizes=embedding_sizes,
+        mlp_layers=model_cfg["mlp_layers"],
     )
-    model.load_state_dict(state_dict)
-    model.eval()
-    logging.info("Model loaded successfully.")
-except Exception as e:
-    logging.error(f"❌ Failed to load model: {e}")
-    raise RuntimeError(f"❌ Failed to load model: {e}")
+
+    if not os.path.exists(MODEL_PATH):
+        logger.error(
+            "Model file not found at '%s'. The /health endpoint will report "
+            "model_loaded=false. Predictions will fail.",
+            MODEL_PATH,
+        )
+    else:
+        state_dict = torch.load(MODEL_PATH, map_location=torch.device("cpu"))
+        model.load_state_dict(state_dict)
+        model.eval()
+        model_loaded = True
+        logger.info("DLRM model loaded successfully from '%s'.", MODEL_PATH)
+except Exception as exc:
+    logger.error("Failed to load DLRM model: %s", exc, exc_info=True)
+    model = None
+
+# ---------------------------------------------------------------------------
+# App
+# ---------------------------------------------------------------------------
+
+app = FastAPI(title="CinemaScopeAI Recommender", version=APP_VERSION)
 
 
-# Convert strings like "2 Seasons", "90 min", or "1h 30m" to estimated duration in minutes
-def parse_duration(val: str) -> int:
-    if not val or not isinstance(val, str):
-        return 0
-
-    val = val.lower().strip()
-
-    # Handle "X Seasons"
-    if "season" in val:
-        match = re.search(r"(\d+)", val)
-        return int(match.group(1)) * 10 if match else 0
-
-    # Handle "1h 30m" style
-    hour_match = re.search(r"(\d+)\s*h", val)
-    min_match = re.search(r"(\d+)\s*m", val)
-
-    total_minutes = 0
-    if hour_match:
-        total_minutes += int(hour_match.group(1)) * 60
-    if min_match:
-        total_minutes += int(min_match.group(1))
-
-    if total_minutes > 0:
-        return total_minutes
-
-    # Handle fallback "90 min" or single number
-    match = re.search(r"(\d+)", val)
-    return int(match.group(1)) if match else 0
+# ---------------------------------------------------------------------------
+# Middleware: request/response logging
+# ---------------------------------------------------------------------------
 
 
-# --- Routes ---
-@app.get("/", tags=["Health"])
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log method, path, status code and duration for every request."""
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - start) * 1000
+    logger.info(
+        "method=%s path=%s status_code=%s duration_ms=%.2f",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+    )
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Structured error handling
+# ---------------------------------------------------------------------------
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(_request: Request, exc: HTTPException):
+    """Return structured JSON error responses for all HTTPExceptions."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": f"HTTP {exc.status_code}",
+            "detail": str(exc.detail),
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_request: Request, exc: Exception):
+    """Catch-all for unhandled exceptions -- return a structured 500."""
+    logger.error("Unhandled exception: %s", exc, exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error": "Internal Server Error",
+            "detail": "An unexpected error occurred.",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Root endpoint
+# ---------------------------------------------------------------------------
+
+
+@app.get("/")
 async def root():
-    """Health check endpoint."""
-    return {"message": "Recommendation API is running!"}
+    """Basic root endpoint."""
+    return {"status": "healthy", "message": "Recommendation API is running."}
 
 
-@app.post("/predict/", tags=["Inference"])
-async def predict_user_input(input: UserMovieInput):
-    try:
-        type_encoder, rating_encoder = load_encoders()
-    except Exception as e:
-        logging.error(f"Failed to load encoders: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load encoders")
+# ---------------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------------
 
-    duration = parse_duration(input.duration_text)
-    try:
-        norm_cont = load_and_apply_scaler(input.release_year, duration)
 
-    except Exception as e:
-        logging.error(f"Scaler load/transform error: {e}")
-        raise HTTPException(status_code=500, detail="Scaler error")
+@app.get("/health", response_model=HealthResponse)
+async def health():
+    """Health-check endpoint with model status."""
+    return {
+        "status": "healthy",
+        "model_loaded": model_loaded,
+        "version": APP_VERSION,
+    }
 
-    continuous_tensor = torch.from_numpy(norm_cont).unsqueeze(0)
 
-    try:
-        type_index = int(type_encoder.transform([input.type])[0])
-        rating_index = int(rating_encoder.transform([input.rating])[0])
-    except Exception as e:
-        logging.error(f"Encoding error: {e}")
-        raise HTTPException(status_code=400, detail="Invalid 'type' or 'rating' input.")
+# ---------------------------------------------------------------------------
+# Model info
+# ---------------------------------------------------------------------------
 
-    full_cat = [type_index, rating_index]
-    categorical_tensor = torch.tensor([full_cat], dtype=torch.int64)
 
-    try:
-        prediction_score = model(continuous_tensor, categorical_tensor).item()
-    except Exception as e:
-        logging.error(f"Model inference error: {e}")
-        raise HTTPException(status_code=500, detail="Model prediction failed.")
+@app.get("/api/v1/models", response_model=ModelInfoResponse)
+async def model_info():
+    """Return information about the loaded model."""
+    if model is None:
+        raise HTTPException(status_code=503, detail="Model is not loaded.")
 
-    # Get movies and return results
-    movies = fetch_real_movies(input.type, input.release_year, input.rating)
+    total_params = sum(p.numel() for p in model.parameters())
+    device = str(next(model.parameters()).device) if model_loaded else "N/A"
 
-    if not movies:
-        raise HTTPException(status_code=500, detail="Failed to fetch movies.")
+    return {
+        "architecture": "DLRM (Deep Learning Recommendation Model)",
+        "num_parameters": total_params,
+        "device": device,
+        "num_continuous_features": num_continuous_features,
+        "num_categorical_features": num_categorical_features,
+        "mlp_layers": model_cfg["mlp_layers"],
+    }
 
-    recommendations = sorted(
-        movies, key=lambda x: abs(x["score"] - prediction_score), reverse=True
+
+# ---------------------------------------------------------------------------
+# TMDB helpers
+# ---------------------------------------------------------------------------
+
+
+async def fetch_real_movies() -> list[dict]:
+    """Fetch popular movies from the TMDB API (async / non-blocking)."""
+    if not TMDB_BEARER_TOKEN:
+        raise TMDBError("TMDB_BEARER_TOKEN is not configured.")
+
+    url = "https://api.themoviedb.org/3/movie/popular?language=en-US&page=1"
+    headers = {
+        "Authorization": f"Bearer {TMDB_BEARER_TOKEN}",
+        "accept": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(url, headers=headers)
+
+    if response.status_code != 200:
+        logger.error(
+            "TMDB API request failed: status=%s body=%s",
+            response.status_code,
+            response.text[:300],
+        )
+        raise TMDBError(f"TMDB API returned status {response.status_code}")
+
+    movies = response.json()["results"]
+    return [
+        {
+            "title": movie["title"],
+            "genre": "Unknown",
+            "rating": "N/A",
+            "score": movie["vote_average"] / 10,
+            "poster_url": (
+                f"https://image.tmdb.org/t/p/w500{movie['poster_path']}"
+                if movie.get("poster_path")
+                else "https://via.placeholder.com/500"
+            ),
+            "director": "N/A",
+            "release_year": (
+                int(movie["release_date"].split("-")[0])
+                if movie.get("release_date")
+                else 0
+            ),
+            "summary": movie.get("overview", ""),
+        }
+        for movie in movies
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Predict (versioned)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/v1/predict", response_model=list[RecommendationResponse])
+async def predict(request: PredictionRequest):
+    """Return the top-5 movie recommendations based on the DLRM prediction score."""
+    if not model_loaded or model is None:
+        raise HTTPException(status_code=503, detail="Model is not loaded.")
+
+    if len(request.categorical_features) != num_categorical_features:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Expected {num_categorical_features} categorical features, "
+                f"got {len(request.categorical_features)}."
+            ),
+        )
+
+    full_categorical_features = request.categorical_features + [0] * num_genres
+    continuous_tensor = torch.tensor(
+        [request.continuous_features], dtype=torch.float32
     )
-    return {"recommendations": recommendations[:5]}
+    categorical_tensor = torch.tensor(
+        [full_categorical_features], dtype=torch.int64
+    )
+
+    prediction_score = model(continuous_tensor, categorical_tensor).item()
+    logger.info("Prediction score: %.4f", prediction_score)
+
+    try:
+        movie_database = await fetch_real_movies()
+    except TMDBError as exc:
+        logger.error("Failed to fetch movies: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    if not movie_database:
+        raise HTTPException(status_code=502, detail="TMDB returned no movies.")
+
+    recommended_movies = sorted(
+        movie_database,
+        key=lambda x: abs(x["score"] - prediction_score),
+        reverse=True,
+    )
+
+    return recommended_movies[:5]
 
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+# Keep old endpoint for backwards compatibility (redirects to versioned)
+@app.post("/predict/", response_model=list[RecommendationResponse])
+async def predict_legacy(request: PredictionRequest):
+    """Legacy predict endpoint -- delegates to the versioned endpoint."""
+    return await predict(request)

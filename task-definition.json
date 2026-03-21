@@ -1,0 +1,22 @@
+{
+  "family": "cinema-task-def",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::804859200836:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "cinema-container",
+      "image": "804859200836.dkr.ecr.us-east-1.amazonaws.com/cinemascope-recsys:latest",
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true
+    }
+  ]
+}
+

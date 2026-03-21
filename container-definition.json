@@ -1,0 +1,14 @@
+[
+    {
+      "name": "cinemascoperecsys",
+      "image": "804859200836.dkr.ecr.us-east-1.amazonaws.com/cinemascoperecsys:latest",
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true
+    }
+  ]
+  

@@ -1,56 +1,36 @@
-# Byte-compiled / cache
-__pycache__/
-*.py[cod]
-*.so
-
-# Virtual environments
-.venv/
-venv/
+# Environment
 .env
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
 
-# macOS
-.DS_Store
-
-# Docker
-*.log
-*.pid
-*.tar
-*.db
-*.sqlite3
-
-# IDE files
+# IDE
 .vscode/
 .idea/
-
-# GitHub backup noise
-*.bak
 *.swp
+*.swo
 
-# Data / model weights / output
-data/
-*.csv
-*.tsv
-*.mp4
-*.jpg
-*.png
-*.mkv
+# OS
+.DS_Store
+Thumbs.db
 
-# Docker volumes / builds
-volumes/
-build/
-dist/
-*.egg-info
-
-# Ignore node_modules just in case
-node_modules/
-
-cinema-task-def.json
-nohup.out
-task-definition.json
-trust-policy.json
-cinema-task-def.json
-nohup.out
-
-# Ignore Lightning logs
+# PyTorch / training artifacts
 lightning_logs/
-*.ckpt
+*.pth
+
+# Data
+data/
+
+# Distribution
+*.egg-info/
+dist/
+build/
+
+# Testing / linting caches
+.pytest_cache/
+.ruff_cache/
+
+# uv
+uv.lock
