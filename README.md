@@ -4,7 +4,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-[![Live on Render](https://img.shields.io/badge/Live%20on-Render-46E3B7?logo=render&logoColor=white)](https://cinemascope-api.onrender.com)
+[![Live on Render](https://img.shields.io/badge/Live%20on-Render-46E3B7?logo=render&logoColor=white)](https://recommendersystem-l993.onrender.com)
 
 A movie recommendation API powered by a Deep Learning Recommendation Model (DLRM). You send it your preferences, it runs them through a neural network, pulls real movie data from TMDB (posters, ratings, summaries — the works), and hands you back personalized recommendations. This is the backend that powers [CinemaScopeAI](https://github.com/AkinCodes/CinemaScopeAI), an iOS app for discovering movies you'll actually want to watch.
 
@@ -15,7 +15,7 @@ A movie recommendation API powered by a Deep Learning Recommendation Model (DLRM
 The API is live right now. Try it:
 
 ```bash
-curl -X POST https://cinemascope-api.onrender.com/api/v1/predict \
+curl -X POST https://recommendersystem-l993.onrender.com/api/v1/predict \
   -H "Content-Type: application/json" \
   -d '{"continuous_features": [0.5, 0.8], "categorical_features": [1, 2]}'
 ```
@@ -438,7 +438,7 @@ The production Dockerfile uses Python 3.11 with uv for fast installs and include
 
 ### Render
 
-The API is deployed on Render at **https://cinemascope-api.onrender.com**. It auto-deploys on every push to `main`. Render builds the Docker image, sets the environment variables, and runs the container.
+The API is deployed on Render at **https://recommendersystem-l993.onrender.com**. It auto-deploys on every push to `main`. Render builds the Docker image, sets the environment variables, and runs the container.
 
 ### AWS ECS (Fargate)
 
