@@ -143,15 +143,14 @@ class ModelInfoResponse(BaseModel):
 # Model loading
 # ---------------------------------------------------------------------------
 
-num_continuous_features = 2
-num_categorical_features = 2
-num_genres = 73
-embedding_sizes = [2, 18] + [2] * num_genres
+num_continuous_features = model_cfg["num_features"]  # 2: mean_rating, normalised_count
+num_categorical_features = len(model_cfg["embedding_sizes"])  # 2: user_id, item_id
+embedding_sizes = model_cfg["embedding_sizes"]  # [943, 1682]
 
 model_loaded = False
 model: DLRMModel | None = None
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "trained_model.pth")
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "trained_model_movielens.pth")
 
 try:
     model = DLRMModel(
@@ -352,17 +351,40 @@ async def predict(request: PredictionRequest):
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Expected {num_categorical_features} categorical features, "
+                f"Expected {num_categorical_features} categorical features "
+                f"(user_id 0-{embedding_sizes[0] - 1}, item_id 0-{embedding_sizes[1] - 1}), "
                 f"got {len(request.categorical_features)}."
             ),
         )
 
-    full_categorical_features = request.categorical_features + [0] * num_genres
+    # Validate categorical feature ranges
+    for i, (val, max_val) in enumerate(
+        zip(request.categorical_features, embedding_sizes)
+    ):
+        if val < 0 or val >= max_val:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Categorical feature {i} out of range: got {val}, "
+                    f"expected 0-{max_val - 1}."
+                ),
+            )
+
+    if len(request.continuous_features) != num_continuous_features:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Expected {num_continuous_features} continuous features "
+                f"(mean_rating, normalised_count), "
+                f"got {len(request.continuous_features)}."
+            ),
+        )
+
     continuous_tensor = torch.tensor(
         [request.continuous_features], dtype=torch.float32
     )
     categorical_tensor = torch.tensor(
-        [full_categorical_features], dtype=torch.int64
+        [request.categorical_features], dtype=torch.int64
     )
 
     prediction_score = model(continuous_tensor, categorical_tensor).item()

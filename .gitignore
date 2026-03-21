@@ -18,10 +18,21 @@ Thumbs.db
 
 # PyTorch / training artifacts
 lightning_logs/
+# Allow trained_model_movielens.pth but ignore other .pth files
 *.pth
+!trained_model_movielens.pth
 
 # Data
 data/
+
+# HTML files
+*.html
+
+# Documentation
+DOCUMENTATION.md
+
+# Claude
+.claude/
 
 # Distribution
 *.egg-info/
