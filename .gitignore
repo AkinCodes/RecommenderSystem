@@ -45,3 +45,9 @@ build/
 
 # uv
 uv.lock
+
+# Learning system (personal, not project code)
+docs/learning_roadmap/
+
+# Experiment artifacts
+wandb/

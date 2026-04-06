@@ -1,0 +1,26 @@
+experiment:
+  name: dlrm_vs_baseline
+  description: >
+    Compare a smaller baseline DLRM (64-32-16 MLP, 10 epochs) against
+    the full DLRM (128-64-32 MLP, 20 epochs) on MovieLens 100K.
+
+  num_features: 2
+  batch_size: 256
+  primary_metric: "NDCG@10"
+  significance_level: 0.05
+  top_k: 10
+  random_seed: 42
+
+  model_a:
+    name: baseline_small
+    embedding_sizes: [943, 1682]
+    mlp_layers: [64, 32, 16]
+    learning_rate: 0.001
+    epochs: 10
+
+  model_b:
+    name: dlrm_full
+    embedding_sizes: [943, 1682]
+    mlp_layers: [128, 64, 32]
+    learning_rate: 0.001
+    epochs: 20
