@@ -1,6 +1,7 @@
 """Train DLRM on MovieLens 100K and evaluate with ranking metrics."""
 
 import os
+import pickle
 import sys
 import time
 
@@ -14,7 +15,7 @@ import wandb
 # Ensure project root is on path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from models.dlrm import DLRMModel
-from data.preprocessing import load_movielens_data, prepare_splits, NUM_FEATURES
+from data.preprocessing import load_movielens_data, prepare_splits, compute_user_stats, build_id_mappings, NUM_FEATURES, RATING_MAX
 
 # ---------------------------------------------------------------------------
 # Config
@@ -234,6 +235,22 @@ def main():
     # Save model
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
     print(f"  Model saved to {MODEL_SAVE_PATH}")
+
+    # Save serving context for the recommendation API
+    idx2item = {v: k for k, v in item2idx.items()}
+    user_ratings_serve, max_count_serve = compute_user_stats(raw[:int(len(raw) * 0.8)])
+    user_features = {}
+    for uid, uidx in user2idx.items():
+        uratings = user_ratings_serve.get(uid, [3])
+        user_features[uidx] = [np.mean(uratings) / RATING_MAX, len(uratings) / max_count_serve]
+    serving_ctx = {
+        "user2idx": user2idx, "item2idx": item2idx, "idx2item": idx2item,
+        "user_features": user_features, "max_count": max_count_serve,
+    }
+    ctx_path = os.path.join(os.path.dirname(MODEL_SAVE_PATH), "serving_context.pkl")
+    with open(ctx_path, "wb") as f:
+        pickle.dump(serving_ctx, f)
+    print(f"  Serving context saved to {ctx_path}")
 
     # Evaluation
     print(f"\n[4/4] Evaluating on test set...")
