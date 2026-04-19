@@ -21,7 +21,10 @@ import numpy as np
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, PROJECT_ROOT)
 
-from scripts.train_movielens import load_data, prepare_splits, NUM_FEATURES, EMBEDDING_SIZES, MLP_LAYERS
+from data.preprocessing import load_movielens_data, prepare_splits, NUM_FEATURES
+from scripts.train_movielens import EMBEDDING_SIZES, MLP_LAYERS
+
+DATA_PATH = os.path.join(PROJECT_ROOT, "data", "ml-100k", "u.data")
 from scripts.baseline_comparison import compute_metrics
 from models.classical import FeatureBuilder, ClassicalRanker
 
@@ -80,7 +83,7 @@ def main():
     # 1. Load data (reuse the same pipeline as DLRM)
     # ------------------------------------------------------------------
     logger.info("Loading MovieLens 100K data...")
-    raw = load_data()
+    raw = load_movielens_data(DATA_PATH)
     (train_cont, train_cat, train_targets,
      test_cont, test_cat, test_targets,
      user2idx, item2idx, test_raw) = prepare_splits(raw)
