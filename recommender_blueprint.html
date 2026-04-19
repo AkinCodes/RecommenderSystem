@@ -1,0 +1,2517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CinemaScopeAI — The Movie Recommender Blueprint</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-theater: #08060e;
+  --bg-curtain: #0e0a16;
+  --bg-screen: #141020;
+  --bg-seat: #1a1428;
+  --bg-seat-hover: #221a34;
+  --bg-booth: #2a2040;
+  --projector-gold: #e8b830;
+  --projector-gold-dim: #b8922a;
+  --curtain-red: #c4233b;
+  --curtain-red-light: #ef4454;
+  --silver-screen: #b8c4d8;
+  --reel-amber: #d4873e;
+  --reel-amber-light: #f0a855;
+  --spotlight-violet: #8a4fcf;
+  --spotlight-violet-light: #b07af0;
+  --stage-ingest: #4a9eff;
+  --stage-embed: #06c9a1;
+  --stage-rank: #f0a030;
+  --stage-serve: #44dd88;
+  --text-marquee: #f5f0ff;
+  --text-main: #c8bfe0;
+  --text-muted: #7c6fa0;
+  --text-dim: #4a3d68;
+  --border: #2a2048;
+  --border-glow: #3d3060;
+  --radius: 14px;
+  --radius-sm: 8px;
+  --transition: 0.35s cubic-bezier(.4,0,.2,1);
+}
+
+/* RESET + BODY */
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg-theater);
+  color: var(--text-main);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* CINEMA HEADER */
+.cinema-header {
+  text-align: center;
+  padding: 52px 24px 28px;
+  position: relative;
+  overflow: hidden;
+}
+.cinema-header::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(232,184,48,0.06) 0%, transparent 60%);
+  pointer-events: none;
+}
+.cinema-header::after {
+  content: '';
+  position: absolute;
+  top: -60%; left: -10%;
+  width: 30%;
+  height: 220%;
+  background: linear-gradient(90deg, transparent, rgba(232,184,48,0.03), transparent);
+  transform: rotate(15deg);
+  animation: projector-sweep 8s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes projector-sweep {
+  0%   { left: -10%; opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { left: 110%; opacity: 0; }
+}
+.cinema-header h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 2.6rem;
+  font-weight: 900;
+  letter-spacing: -1px;
+  background: linear-gradient(135deg, var(--projector-gold), var(--curtain-red-light), var(--spotlight-violet-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  position: relative;
+}
+.cinema-header .subtitle {
+  font-size: 1rem;
+  color: var(--text-muted);
+  position: relative;
+  margin-top: 6px;
+}
+
+/* SECTION HEADINGS */
+.section-heading {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  color: var(--text-marquee);
+  letter-spacing: -0.5px;
+}
+
+/* STICKY TAB NAV */
+.tab-nav {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 20px;
+  background: var(--bg-curtain);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  flex-wrap: wrap;
+}
+.tab-btn {
+  padding: 10px 24px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+  position: relative;
+  white-space: nowrap;
+}
+.tab-btn:hover {
+  color: var(--text-main);
+  background: rgba(255,255,255,0.05);
+}
+.tab-btn.active {
+  background: var(--bg-theater);
+  color: var(--projector-gold);
+  border-color: var(--border-glow);
+  border-bottom: 1px solid var(--bg-theater);
+}
+
+/* DROPDOWN GROUP */
+.tab-group {
+  position: relative;
+}
+.tab-group-btn {
+  padding: 10px 24px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.tab-group-btn:hover {
+  color: var(--text-main);
+  background: rgba(255,255,255,0.05);
+}
+.tab-group-btn.active {
+  background: var(--bg-theater);
+  color: var(--projector-gold);
+  border-color: var(--border-glow);
+}
+.tab-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 200px;
+  background: var(--bg-curtain);
+  border: 1px solid var(--border-glow);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) var(--radius-sm);
+  padding: 6px 0;
+  display: none;
+  z-index: 210;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+}
+.tab-dropdown.open {
+  display: block;
+}
+.tab-dropdown button {
+  display: block;
+  width: 100%;
+  padding: 10px 18px;
+  background: none;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition);
+}
+.tab-dropdown button:hover {
+  background: rgba(255,255,255,0.05);
+  color: var(--text-main);
+}
+.tab-dropdown button.active {
+  color: var(--projector-gold);
+}
+
+/* TAB PANELS */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* PANEL INNER */
+.panel-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 52px 24px 88px;
+}
+
+/* FILM STRIP DIVIDER */
+.film-strip {
+  height: 28px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--border) 0px, var(--border) 18px,
+    transparent 18px, transparent 24px
+  );
+  position: relative;
+  overflow: hidden;
+  opacity: 0.4;
+  margin: 20px 0;
+}
+.film-strip::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 200%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(232,184,48,0.08), transparent);
+  animation: reel-scroll 4s linear infinite;
+}
+@keyframes reel-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(50%); }
+}
+
+/* NODE CARDS */
+.node-grid {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 30px 20px 80px;
+}
+.section-title {
+  text-align: center;
+  margin-bottom: 8px;
+}
+.section-title h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-marquee);
+  letter-spacing: -0.5px;
+}
+.section-title p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  margin-bottom: 28px;
+}
+
+.node {
+  --accent: var(--stage-ingest);
+  background: var(--bg-seat);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 26px 20px;
+  cursor: pointer;
+  position: relative;
+  transition: all var(--transition);
+  max-width: 620px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+.node::before {
+  content: '';
+  position: absolute;
+  top: -1px; left: 24px; right: 24px;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 0 0 3px 3px;
+  opacity: 0.5;
+  transition: opacity var(--transition);
+}
+.node:hover {
+  background: var(--bg-seat-hover);
+  border-color: var(--border-glow);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.node:hover::before { opacity: 1; }
+.node.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 24px rgba(0,0,0,0.3);
+}
+.node.active::before { opacity: 1; height: 4px; }
+.node.lit { border-color: rgba(138,79,207,0.3); }
+
+.node-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+.node-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+  width: 48px; height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.03);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.node-info { flex: 1; }
+.node-step {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.node-name {
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--text-marquee);
+  letter-spacing: -0.3px;
+}
+.node-role {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.node-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-top: 6px;
+}
+.node-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--stage-embed);
+  background: rgba(6,201,161,0.05);
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(6,201,161,0.08);
+  margin-top: 10px;
+  display: inline-block;
+}
+
+/* Accent colors per phase */
+.node[data-phase="env"] { --accent: var(--stage-serve); }
+.node[data-phase="config"] { --accent: var(--spotlight-violet); }
+.node[data-phase="schema"] { --accent: var(--stage-ingest); }
+.node[data-phase="model"] { --accent: var(--projector-gold); }
+.node[data-phase="weights"] { --accent: var(--curtain-red); }
+.node[data-phase="app"] { --accent: var(--stage-ingest); }
+.node[data-phase="middleware"] { --accent: var(--reel-amber); }
+
+.node[data-phase="validate"] { --accent: var(--curtain-red); }
+.node[data-phase="tensor"] { --accent: var(--spotlight-violet); }
+.node[data-phase="embed"] { --accent: var(--projector-gold); }
+.node[data-phase="fuse"] { --accent: var(--stage-embed); }
+.node[data-phase="mlp"] { --accent: var(--reel-amber); }
+.node[data-phase="tmdb"] { --accent: var(--stage-serve); }
+.node[data-phase="rank"] { --accent: var(--stage-ingest); }
+
+/* LAYER DIMENSIONS VIZ */
+.layer-viz {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.02);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+.layer-box { text-align: center; flex-shrink: 0; }
+.layer-bar {
+  margin: 0 auto 4px;
+  border-radius: 4px;
+  transition: height 0.5s;
+}
+.layer-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--text-muted);
+}
+.layer-arrow {
+  font-size: 1rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* CORRIDOR CONNECTORS */
+.corridor {
+  width: 4px;
+  height: 32px;
+  background: var(--bg-booth);
+  margin: 0 auto;
+  border-radius: 2px;
+  position: relative;
+  transition: background 0.5s;
+}
+.corridor.lit {
+  background: var(--border-glow);
+  box-shadow: 0 0 12px rgba(138,79,207,0.15);
+}
+
+/* CONTROLS */
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 20px 4px;
+  flex-wrap: wrap;
+}
+.ctrl-btn {
+  padding: 10px 22px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.ctrl-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-main); }
+.ctrl-btn.play { background: rgba(138,79,207,0.15); border-color: rgba(138,79,207,0.3); color: var(--spotlight-violet-light); }
+
+/* DETAIL PANEL (slide-in from right) */
+.detail-panel {
+  position: fixed;
+  top: 0; right: 0;
+  width: 420px; max-width: 90vw;
+  height: 100vh;
+  background: var(--bg-curtain);
+  border-left: 1px solid var(--border);
+  z-index: 300;
+  transform: translateX(100%);
+  transition: transform var(--transition);
+  overflow-y: auto;
+  box-shadow: -8px 0 40px rgba(0,0,0,0.6);
+}
+.detail-panel.open { transform: translateX(0); }
+.panel-header {
+  padding: 28px 24px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  position: sticky; top: 0;
+  background: var(--bg-curtain);
+  z-index: 2;
+}
+.panel-icon { font-size: 2rem; }
+.panel-title-wrap { flex: 1; margin-left: 14px; }
+.panel-step {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--spotlight-violet-light);
+}
+.panel-title {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: var(--text-marquee);
+}
+.panel-close {
+  width: 32px; height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+  transition: all var(--transition);
+}
+.panel-close:hover { background: var(--bg-seat); color: var(--text-marquee); }
+.panel-body { padding: 20px 24px 40px; }
+.panel-section { margin-bottom: 20px; }
+.panel-section-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.panel-text { font-size: 0.85rem; color: var(--text-main); line-height: 1.7; }
+.panel-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  background: rgba(6,201,161,0.05);
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(6,201,161,0.08);
+  overflow-x: auto;
+  white-space: pre;
+  line-height: 1.7;
+}
+.panel-code .kw { color: #c084fc; }
+.panel-code .fn { color: #ffd700; }
+.panel-code .str { color: #86efac; }
+.panel-code .cm { color: #5c4d7a; font-style: italic; }
+.panel-code .num { color: #fb923c; }
+.panel-code .var { color: #67e8f9; }
+.panel-file {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--projector-gold);
+  background: rgba(232,184,48,0.05);
+  padding: 6px 10px;
+  border-radius: 6px;
+  display: inline-block;
+}
+.panel-flavor {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.7;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.02);
+  border-left: 3px solid var(--border);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* BACKDROP OVERLAY */
+.backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 299;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+}
+.backdrop.active { opacity: 1; pointer-events: auto; }
+
+/* SESAME STREET SECTIONS */
+.sesame-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px dashed var(--border);
+}
+.sesame-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.sesame-badge {
+  background: rgba(212,135,62,0.12);
+  border: 1px solid rgba(212,135,62,0.25);
+  border-radius: var(--radius-sm);
+  padding: 4px 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--reel-amber-light);
+  letter-spacing: 0.5px;
+}
+.sesame-content {
+  background: rgba(212,135,62,0.04);
+  border: 1px solid rgba(212,135,62,0.1);
+  border-radius: 12px;
+  padding: 18px 20px;
+  font-size: 0.85rem;
+  color: var(--text-main);
+  line-height: 1.8;
+  white-space: pre-line;
+}
+.ss-box {
+  background: rgba(212,135,62,0.06);
+  border: 1px solid rgba(212,135,62,0.15);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  margin: 16px 0;
+}
+
+/* CODE BLOCKS WITH SYNTAX HIGHLIGHTING */
+pre code .kw { color: #c084fc; }
+pre code .fn { color: #ffd700; }
+pre code .str { color: #86efac; }
+pre code .cm { color: #5c4d7a; font-style: italic; }
+pre code .num { color: #fb923c; }
+pre code .var { color: #67e8f9; }
+
+/* COLLAPSIBLE SECTIONS */
+.collapse { margin-bottom: 12px; }
+.collapse-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--bg-seat);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-main);
+  transition: all var(--transition);
+}
+.collapse-header:hover {
+  background: var(--bg-seat-hover);
+  border-color: var(--border-glow);
+}
+.collapse-header::before {
+  content: '\25B6';
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  transition: transform var(--transition);
+}
+.collapse.open .collapse-header::before {
+  transform: rotate(90deg);
+}
+.collapse-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease;
+}
+.collapse.open .collapse-body {
+  max-height: 2000px;
+}
+
+/* STAR RATING ANIMATION */
+@keyframes star-ignite {
+  0%   { opacity: 0; transform: scale(0.3) rotate(-30deg); }
+  50%  { opacity: 1; transform: scale(1.2) rotate(5deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+.star { display: inline-block; animation: star-ignite 0.4s ease forwards; opacity: 0; }
+.star:nth-child(1) { animation-delay: 0.0s; }
+.star:nth-child(2) { animation-delay: 0.1s; }
+.star:nth-child(3) { animation-delay: 0.2s; }
+.star:nth-child(4) { animation-delay: 0.3s; }
+.star:nth-child(5) { animation-delay: 0.4s; }
+
+/* PIPELINE FLOW ANIMATION */
+@keyframes pipeline-flow {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.pipeline-active {
+  background: linear-gradient(90deg, var(--border), var(--spotlight-violet), var(--border));
+  background-size: 200% 100%;
+  animation: pipeline-flow 1.5s linear infinite;
+}
+
+/* RESPONSIVE */
+@media (max-width: 700px) {
+  .cinema-header h1 { font-size: 1.7rem; }
+  .node { padding: 16px 18px 14px; }
+  .tab-nav { gap: 2px; padding: 8px 12px; }
+  .tab-btn { padding: 8px 14px; font-size: 0.76rem; }
+  .tab-group-btn { padding: 8px 14px; font-size: 0.76rem; }
+  .detail-panel { width: 100vw; }
+  .panel-inner { padding: 32px 16px 60px; }
+  .factory-pipeline { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; }
+  .factory-pipeline > div[style*="font-size:1.4rem"] { text-align: center; transform: rotate(90deg); margin: -4px 0; }
+  #tab-theater div[style*="grid-template-columns:repeat(3"] { grid-template-columns: 1fr !important; }
+}
+
+/* BLUEPRINT TAB */
+.bp-layer {
+  background: var(--bg-seat);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-glow);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  margin: 6px 0;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.bp-layer:hover { background: var(--bg-seat-hover); border-color: var(--border-glow); }
+.bp-layer.bp-active { background: var(--bg-booth); border-color: var(--spotlight-violet); }
+.bp-fusion {
+  border: 2px solid var(--projector-gold-dim);
+  background: rgba(232,184,48,0.04);
+  padding: 18px 22px;
+}
+.bp-fusion:hover { border-color: var(--projector-gold); }
+.bp-connector { width: 2px; height: 20px; background: var(--border-glow); margin: 0 auto; }
+.bp-stat {
+  background: var(--bg-seat);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px 12px;
+  text-align: center;
+}
+.bp-stat-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-marquee);
+}
+.bp-stat-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+@media (max-width: 600px) {
+  #tab-blueprint .bp-layer { padding: 10px 12px; }
+  #tab-blueprint div[style*="grid-template-columns:repeat(3"] { grid-template-columns: 1fr 1fr !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- CINEMA HEADER -->
+<div class="cinema-header">
+  <h1>CinemaScopeAI</h1>
+  <div class="subtitle">The Movie Recommender Blueprint &mdash; DLRM architecture, startup wiring, and prediction pipeline</div>
+</div>
+
+<!-- STICKY TAB NAV -->
+<nav class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('theater')">&#127916; Theater</button>
+  <button class="tab-btn" onclick="switchTab('blueprint')">&#128736; Blueprint</button>
+  <button class="tab-btn" onclick="switchTab('startup')">&#9881; Startup</button>
+  <button class="tab-btn" onclick="switchTab('predict')">&#128302; Prediction</button>
+  <div class="tab-group" id="deepDivesGroup">
+    <button class="tab-group-btn" onclick="toggleGroup('deepDivesGroup')">&#128269; Deep Dives &#9662;</button>
+    <div class="tab-dropdown" id="deepDivesGroup-dropdown">
+      <button onclick="switchTabFromGroup('embeddings','deepDivesGroup')">&#128300; Embedding Vault</button>
+      <button onclick="switchTabFromGroup('brainscan','deepDivesGroup')">&#129504; Brain Scan</button>
+      <button onclick="switchTabFromGroup('delivery','deepDivesGroup')">&#128230; Delivery Dock</button>
+      <button onclick="switchTabFromGroup('prepkitchen','deepDivesGroup')">&#127859; Prep Kitchen</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ========== TAB: THEATER ========== -->
+<div class="tab-panel active" id="tab-theater">
+  <div class="panel-inner">
+
+    <!-- SECTION 1: The Story Setup -->
+    <h2 class="section-heading" style="text-align:center; font-size:2rem; margin-bottom:8px;">&#127916; Welcome to the Movie Factory</h2>
+    <p style="text-align:center; color:var(--text-muted); max-width:640px; margin:0 auto 28px; font-size:0.95rem;">A Sesame Street guide to how recommender systems actually work.</p>
+
+    <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--projector-gold); border-radius:var(--radius); padding:24px 28px; max-width:760px; margin:0 auto 36px; line-height:1.75; color:var(--text-main); font-size:1.02rem;">
+      Sesame Street is holding its <strong style="color:var(--projector-gold);">BIGGEST EVER</strong> talent show. Thousands of acts. Thousands of audience members. But there's a problem: you can't play every act for every monster. There isn't enough time. You need a system that watches, learns, and figures out which acts each audience member will <strong style="color:var(--projector-gold);">LOVE</strong>.
+    </div>
+
+    <!-- SECTION 2: The Cast -->
+    <h3 style="text-align:center; font-size:1.3rem; color:var(--text-marquee); margin-bottom:18px;">&#127917; The Cast</h3>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; max-width:840px; margin:0 auto 40px;">
+      <!-- Cookie Monster -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-radius:var(--radius); padding:20px; transition:transform var(--transition), border-color var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='var(--border-glow)';" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='var(--border)';">
+        <div style="font-size:2.2rem; margin-bottom:6px;">&#127850;</div>
+        <div style="font-weight:700; color:var(--text-marquee); margin-bottom:2px;">Cookie Monster</div>
+        <div style="font-size:0.82rem; color:var(--projector-gold); margin-bottom:8px;">The Hungry Audience</div>
+        <div style="font-size:0.85rem; color:var(--text-muted); line-height:1.5;">Represents the user whose preferences we're learning.</div>
+      </div>
+      <!-- Big Bird -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-radius:var(--radius); padding:20px; transition:transform var(--transition), border-color var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='var(--border-glow)';" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='var(--border)';">
+        <div style="font-size:2.2rem; margin-bottom:6px;">&#128038;</div>
+        <div style="font-weight:700; color:var(--text-marquee); margin-bottom:2px;">Big Bird</div>
+        <div style="font-size:0.82rem; color:var(--projector-gold); margin-bottom:8px;">The Stage Manager</div>
+        <div style="font-size:0.85rem; color:var(--text-muted); line-height:1.5;">Handles validation, checking, and orchestration.</div>
+      </div>
+      <!-- Grover -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-radius:var(--radius); padding:20px; transition:transform var(--transition), border-color var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='var(--border-glow)';" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='var(--border)';">
+        <div style="font-size:2.2rem; margin-bottom:6px;">&#128309;</div>
+        <div style="font-weight:700; color:var(--text-marquee); margin-bottom:2px;">Grover</div>
+        <div style="font-size:0.82rem; color:var(--projector-gold); margin-bottom:8px;">The Backstage Crew</div>
+        <div style="font-size:0.85rem; color:var(--text-muted); line-height:1.5;">Thorough and tireless, builds the scoring infrastructure.</div>
+      </div>
+      <!-- Elmo -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-radius:var(--radius); padding:20px; transition:transform var(--transition), border-color var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='var(--border-glow)';" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='var(--border)';">
+        <div style="font-size:2.2rem; margin-bottom:6px;">&#10084;&#65039;</div>
+        <div style="font-weight:700; color:var(--text-marquee); margin-bottom:2px;">Elmo</div>
+        <div style="font-size:0.82rem; color:var(--projector-gold); margin-bottom:8px;">The Excited Performer</div>
+        <div style="font-size:0.85rem; color:var(--text-muted); line-height:1.5;">Represents the items/movies being recommended.</div>
+      </div>
+      <!-- The Count -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-radius:var(--radius); padding:20px; transition:transform var(--transition), border-color var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='var(--border-glow)';" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='var(--border)';">
+        <div style="font-size:2.2rem; margin-bottom:6px;">&#129499;</div>
+        <div style="font-weight:700; color:var(--text-marquee); margin-bottom:2px;">The Count</div>
+        <div style="font-size:0.82rem; color:var(--projector-gold); margin-bottom:8px;">The Scoring Judge</div>
+        <div style="font-size:0.85rem; color:var(--text-muted); line-height:1.5;">Compresses features into a single score.</div>
+      </div>
+    </div>
+
+    <!-- SECTION 3: The Factory Floor Map -->
+    <h3 style="text-align:center; font-size:1.3rem; color:var(--text-marquee); margin-bottom:18px;">&#127981; The Factory Floor</h3>
+    <div class="factory-pipeline" style="display:flex; align-items:center; justify-content:center; gap:6px; max-width:900px; margin:0 auto 40px; flex-wrap:wrap;">
+      <!-- Station 1 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-ingest); border-radius:var(--radius-sm); padding:14px 16px; text-align:center; min-width:110px; flex:1;">
+        <div style="font-size:2rem;">&#127915;</div>
+        <div style="font-size:0.78rem; font-weight:600; color:var(--text-marquee); margin-top:4px;">Ticket Window</div>
+        <div style="font-size:0.7rem; color:var(--text-muted);">Validation</div>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.4rem; flex-shrink:0;">&#10142;</div>
+      <!-- Station 2 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--spotlight-violet); border-radius:var(--radius-sm); padding:14px 16px; text-align:center; min-width:110px; flex:1;">
+        <div style="font-size:2rem;">&#128290;</div>
+        <div style="font-size:0.78rem; font-weight:600; color:var(--text-marquee); margin-top:4px;">Number Painter</div>
+        <div style="font-size:0.7rem; color:var(--text-muted);">Tensor Creation</div>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.4rem; flex-shrink:0;">&#10142;</div>
+      <!-- Station 3 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-embed); border-radius:var(--radius-sm); padding:14px 16px; text-align:center; min-width:110px; flex:1;">
+        <div style="font-size:2rem;">&#128142;</div>
+        <div style="font-size:0.78rem; font-weight:600; color:var(--text-marquee); margin-top:4px;">Badge Maker</div>
+        <div style="font-size:0.7rem; color:var(--text-muted);">Embedding Lookup</div>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.4rem; flex-shrink:0;">&#10142;</div>
+      <!-- Station 4 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--reel-amber); border-radius:var(--radius-sm); padding:14px 16px; text-align:center; min-width:110px; flex:1;">
+        <div style="font-size:2rem;">&#129386;</div>
+        <div style="font-size:0.78rem; font-weight:600; color:var(--text-marquee); margin-top:4px;">Sandwich Press</div>
+        <div style="font-size:0.7rem; color:var(--text-muted);">Feature Fusion</div>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.4rem; flex-shrink:0;">&#10142;</div>
+      <!-- Station 5 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--curtain-red); border-radius:var(--radius-sm); padding:14px 16px; text-align:center; min-width:110px; flex:1;">
+        <div style="font-size:2rem;">&#127981;</div>
+        <div style="font-size:0.78rem; font-weight:600; color:var(--text-marquee); margin-top:4px;">Shrinking Machine</div>
+        <div style="font-size:0.7rem; color:var(--text-muted);">MLP Scoring</div>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.4rem; flex-shrink:0;">&#10142;</div>
+      <!-- Station 6 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-serve); border-radius:var(--radius-sm); padding:14px 16px; text-align:center; min-width:110px; flex:1;">
+        <div style="font-size:2rem;">&#127916;</div>
+        <div style="font-size:0.78rem; font-weight:600; color:var(--text-marquee); margin-top:4px;">Movie Poster Printer</div>
+        <div style="font-size:0.7rem; color:var(--text-muted);">TMDB + Ranking</div>
+      </div>
+    </div>
+
+    <!-- SECTION 4: Quick Start Buttons -->
+    <div style="display:flex; justify-content:center; gap:14px; flex-wrap:wrap; max-width:700px; margin:0 auto 36px;">
+      <button onclick="switchTab('startup')" style="background:var(--bg-booth); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px 24px; color:var(--projector-gold); cursor:pointer; font-size:0.95rem; font-weight:600; transition:background var(--transition);" onmouseover="this.style.background='var(--bg-seat-hover)';" onmouseout="this.style.background='var(--bg-booth)';">&#9881; Watch the Assembly Line</button>
+      <button onclick="switchTab('predict')" style="background:var(--bg-booth); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px 24px; color:var(--projector-gold); cursor:pointer; font-size:0.95rem; font-weight:600; transition:background var(--transition);" onmouseover="this.style.background='var(--bg-seat-hover)';" onmouseout="this.style.background='var(--bg-booth)';">&#128302; Watch a Prediction</button>
+      <button onclick="switchTab('embeddings')" style="background:var(--bg-booth); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px 24px; color:var(--projector-gold); cursor:pointer; font-size:0.95rem; font-weight:600; transition:background var(--transition);" onmouseover="this.style.background='var(--bg-seat-hover)';" onmouseout="this.style.background='var(--bg-booth)';">&#128142; Explore Embeddings</button>
+    </div>
+
+    <!-- SECTION 5: Sesame Street Box -->
+    <div style="background:rgba(42,154,122,0.06); border:1px solid rgba(42,154,122,0.15); border-radius:var(--radius); padding:22px 26px; max-width:760px; margin:0 auto;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--text-marquee); margin-bottom:10px;">&#127775; The Sesame Street Talent Show</div>
+      <div style="color:var(--text-main); line-height:1.8; font-size:0.94rem;">
+        Big Bird is the stage manager. Before the show opens, he checks the venue (are all the seats bolted down? are the lights working?), sets up the scoring booth (gets the judges' table ready), and loads last year's scorecards (so the judges remember what happened before).
+        <br><br>
+        Cookie Monster sits in the audience. He's wearing a bracelet of colored beads &mdash; each bead tells the system something about what Cookie Monster likes. Elmo is on stage, also wearing a bracelet &mdash; his beads tell the system what kind of act he does.
+        <br><br>
+        The Count takes Cookie Monster's bracelet, takes Elmo's bracelet, and grabs tonight's weather report. He smashes them all together into one mega-scorecard, then squeezes it through his shrinking machine &mdash; smaller, smaller, smaller &mdash; until one single number pops out:
+        <br><br>
+        <span style="font-weight:700; color:var(--projector-gold); font-size:1.05rem;">"ZERO POINT EIGHT SEVEN! Ah ah ah! Cookie Monster will probably enjoy Elmo's act!"</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ========== TAB: BLUEPRINT ========== -->
+<div class="tab-panel" id="tab-blueprint">
+  <div class="panel-inner">
+
+    <!-- ── SECTION 1: Introduction ── -->
+    <h2 class="section-heading" style="text-align:center; font-size:1.8rem; margin-bottom:12px;">Architecture Blueprint</h2>
+    <p style="text-align:center; color:var(--text-muted); max-width:680px; margin:0 auto 32px;">
+      The DLRM (Deep Learning Recommendation Model) is the brain of CinemaScopeAI. Below is its complete anatomy &mdash; from raw inputs at the top to a single prediction score at the bottom. Click any layer to learn more.
+    </p>
+
+    <!-- ── SECTION 2: DLRM Architecture Diagram ── -->
+    <div style="max-width:720px; margin:0 auto;">
+
+      <!-- ROW 1 — Inputs -->
+      <div style="display:flex; gap:16px; justify-content:center;">
+        <div class="bp-layer" style="flex:1; border-left-color:var(--stage-ingest);" onclick="this.classList.toggle('bp-active')">
+          <div style="font-weight:700; font-size:0.95rem; color:var(--text-marquee);">Continuous Features</div>
+          <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">2 numbers: normalized rating + watch count</div>
+        </div>
+        <div class="bp-layer" style="flex:1; border-left-color:var(--stage-embed);" onclick="this.classList.toggle('bp-active')">
+          <div style="font-weight:700; font-size:0.95rem; color:var(--text-marquee);">Categorical Features</div>
+          <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">2 indices: user_id + item_id</div>
+        </div>
+      </div>
+
+      <!-- Connector -->
+      <div style="display:flex; gap:16px; justify-content:center;">
+        <div style="flex:1; display:flex; justify-content:center;"><div class="bp-connector"></div></div>
+        <div style="flex:1; display:flex; justify-content:center;"><div class="bp-connector"></div></div>
+      </div>
+
+      <!-- ROW 2 — Parallel Processing -->
+      <div style="display:flex; gap:16px; justify-content:center;">
+        <!-- Left: Dense Bottom Layer -->
+        <div class="bp-layer" style="flex:1; border-left-color:var(--stage-ingest);" onclick="this.classList.toggle('bp-active')">
+          <div style="font-weight:700; font-size:0.95rem; color:var(--text-marquee);">Dense Bottom Layer</div>
+          <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">Linear(2 &rarr; 128)</div>
+          <!-- Bar visualization -->
+          <div style="display:flex; align-items:center; gap:6px; margin-top:10px;">
+            <div style="display:flex; gap:2px;">
+              <div style="width:4px; height:18px; background:var(--stage-ingest); border-radius:2px;"></div>
+              <div style="width:4px; height:18px; background:var(--stage-ingest); border-radius:2px;"></div>
+            </div>
+            <span style="color:var(--text-dim); font-size:0.75rem;">&rarr;</span>
+            <div style="display:flex; gap:1px;">
+              <div style="width:60px; height:18px; background:linear-gradient(90deg, var(--stage-ingest), var(--spotlight-violet)); border-radius:2px;"></div>
+            </div>
+            <span style="font-size:0.7rem; color:var(--text-dim);">128-d</span>
+          </div>
+        </div>
+        <!-- Right: Embedding Tables -->
+        <div class="bp-layer" style="flex:1; border-left-color:var(--stage-embed);" onclick="this.classList.toggle('bp-active')">
+          <div style="font-weight:700; font-size:0.95rem; color:var(--text-marquee);">Embedding Tables</div>
+          <div style="margin-top:8px; padding:8px 10px; background:rgba(6,201,161,0.06); border:1px solid rgba(6,201,161,0.15); border-radius:var(--radius-sm);">
+            <div style="font-size:0.8rem; color:var(--stage-embed); font-weight:600;">User Embeddings</div>
+            <div style="font-size:0.75rem; color:var(--text-muted);">943 &times; 128 &nbsp;(120,704 params)</div>
+          </div>
+          <div style="margin-top:6px; padding:8px 10px; background:rgba(6,201,161,0.06); border:1px solid rgba(6,201,161,0.15); border-radius:var(--radius-sm);">
+            <div style="font-size:0.8rem; color:var(--stage-embed); font-weight:600;">Item Embeddings</div>
+            <div style="font-size:0.75rem; color:var(--text-muted);">1682 &times; 128 &nbsp;(215,296 params)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Connector (merging) -->
+      <div style="display:flex; gap:16px; justify-content:center;">
+        <div style="flex:1; display:flex; justify-content:center;"><div class="bp-connector"></div></div>
+        <div style="flex:1; display:flex; justify-content:center;"><div class="bp-connector"></div></div>
+      </div>
+
+      <!-- ROW 3 — Fusion (KEY INSIGHT) -->
+      <div class="bp-layer bp-fusion" onclick="this.classList.toggle('bp-active')">
+        <div style="font-weight:700; font-size:1.05rem; color:var(--projector-gold);">&#x2B50; Concatenation</div>
+        <div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">128 + 128 + 128 = <strong style="color:var(--projector-gold);">384-dimensional vector</strong></div>
+        <!-- Merge visualization -->
+        <div style="display:flex; align-items:center; justify-content:center; gap:6px; margin-top:12px;">
+          <div style="width:50px; height:14px; background:var(--stage-ingest); border-radius:3px;"></div>
+          <div style="width:50px; height:14px; background:var(--stage-embed); border-radius:3px;"></div>
+          <div style="width:50px; height:14px; background:var(--stage-embed); border-radius:3px;"></div>
+          <span style="color:var(--text-dim); font-size:0.8rem; margin:0 4px;">&rarr;</span>
+          <div style="width:140px; height:14px; background:linear-gradient(90deg, var(--stage-ingest), var(--stage-embed), var(--stage-embed), var(--projector-gold)); border-radius:3px;"></div>
+        </div>
+      </div>
+
+      <!-- Connector -->
+      <div style="display:flex; justify-content:center;"><div class="bp-connector"></div></div>
+
+      <!-- ROW 4 — MLP Stack (funnel) -->
+      <div style="display:flex; flex-direction:column; align-items:center; gap:0;">
+        <div class="bp-layer" style="width:80%; border-left-color:var(--stage-rank);" onclick="this.classList.toggle('bp-active')">
+          <div style="font-weight:700; font-size:0.9rem; color:var(--text-marquee);">Linear(384 &rarr; 64) + ReLU</div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">24,640 parameters</div>
+        </div>
+        <div style="display:flex; justify-content:center;"><div class="bp-connector"></div></div>
+        <div class="bp-layer" style="width:60%; border-left-color:var(--stage-rank);" onclick="this.classList.toggle('bp-active')">
+          <div style="font-weight:700; font-size:0.9rem; color:var(--text-marquee);">Linear(64 &rarr; 32) + ReLU</div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">2,080 parameters</div>
+        </div>
+        <div style="display:flex; justify-content:center;"><div class="bp-connector"></div></div>
+        <div class="bp-layer" style="width:30%; border-left-color:var(--stage-serve);" onclick="this.classList.toggle('bp-active')">
+          <div style="font-weight:700; font-size:0.9rem; color:var(--text-marquee);">Linear(32 &rarr; 1) + Sigmoid</div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">33 parameters</div>
+        </div>
+      </div>
+
+      <!-- Connector -->
+      <div style="display:flex; justify-content:center;"><div class="bp-connector"></div></div>
+
+      <!-- ROW 5 — Output -->
+      <div class="bp-layer" style="width:40%; margin:0 auto; text-align:center; border-left-color:var(--projector-gold); background:rgba(232,184,48,0.06);">
+        <div style="font-weight:700; font-size:0.95rem; color:var(--projector-gold);">Prediction Score</div>
+        <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">0.0 &mdash; 1.0</div>
+        <div style="margin-top:8px; font-size:1.3rem; letter-spacing:4px;">
+          <span class="star">&#9733;</span><span class="star">&#9733;</span><span class="star">&#9733;</span><span class="star">&#9733;</span><span class="star" style="opacity:0.3;">&#9733;</span>
+        </div>
+      </div>
+
+    </div><!-- end architecture diagram -->
+
+    <!-- ── SECTION 3: Parameter Summary ── -->
+    <h3 class="section-heading" style="text-align:center; font-size:1.3rem; margin:40px 0 16px;">Parameter Summary</h3>
+    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; max-width:600px; margin:0 auto;">
+      <div class="bp-stat">
+        <div class="bp-stat-num">363,137</div>
+        <div class="bp-stat-label">Total Parameters</div>
+      </div>
+      <div class="bp-stat">
+        <div class="bp-stat-num">120,704</div>
+        <div class="bp-stat-label">User Embeddings (33%)</div>
+      </div>
+      <div class="bp-stat">
+        <div class="bp-stat-num">215,296</div>
+        <div class="bp-stat-label">Item Embeddings (59%)</div>
+      </div>
+      <div class="bp-stat">
+        <div class="bp-stat-num">27,137</div>
+        <div class="bp-stat-label">Dense + MLP (8%)</div>
+      </div>
+      <div class="bp-stat">
+        <div class="bp-stat-num">1.4 MB</div>
+        <div class="bp-stat-label">Model Size</div>
+      </div>
+      <div class="bp-stat">
+        <div class="bp-stat-num">&lt;0.05ms</div>
+        <div class="bp-stat-label">Inference Time</div>
+      </div>
+    </div>
+
+    <!-- ── SECTION 4: File Anatomy ── -->
+    <h3 class="section-heading" style="text-align:center; font-size:1.3rem; margin:40px 0 16px;">File Anatomy</h3>
+    <div style="max-width:660px; margin:0 auto;">
+
+      <div class="collapse" onclick="this.classList.toggle('open')">
+        <div class="collapse-header" style="border-left:3px solid var(--spotlight-violet);">
+          <span>&#128273;</span> <span>Config &amp; Setup</span>
+          <span style="margin-left:auto; font-size:0.75rem; color:var(--text-dim);">lines 1&ndash;40</span>
+        </div>
+        <div class="collapse-body">
+          <pre style="padding:14px 16px; background:var(--bg-screen); border-radius:0 0 var(--radius-sm) var(--radius-sm); font-size:0.78rem; overflow-x:auto;"><code><span class="cm"># ── Environment &amp; config ──</span>
+<span class="kw">import</span> <span class="var">os</span>, <span class="var">torch</span>, <span class="var">httpx</span>
+<span class="kw">from</span> <span class="var">dotenv</span> <span class="kw">import</span> <span class="fn">load_dotenv</span>
+<span class="fn">load_dotenv</span>()
+
+<span class="var">TMDB_KEY</span> = <span class="var">os</span>.<span class="fn">getenv</span>(<span class="str">"TMDB_API_KEY"</span>)
+<span class="var">MODEL_PATH</span> = <span class="str">"models/dlrm_model.pth"</span>
+<span class="var">NUM_USERS</span>  = <span class="num">943</span>
+<span class="var">NUM_ITEMS</span>  = <span class="num">1682</span></code></pre>
+        </div>
+      </div>
+
+      <div class="collapse" onclick="this.classList.toggle('open')">
+        <div class="collapse-header" style="border-left:3px solid var(--stage-embed);">
+          <span>&#128220;</span> <span>Pydantic Models</span>
+          <span style="margin-left:auto; font-size:0.75rem; color:var(--text-dim);">lines 96&ndash;134</span>
+        </div>
+        <div class="collapse-body">
+          <pre style="padding:14px 16px; background:var(--bg-screen); border-radius:0 0 var(--radius-sm) var(--radius-sm); font-size:0.78rem; overflow-x:auto;"><code><span class="kw">class</span> <span class="fn">RecommendRequest</span>(<span class="var">BaseModel</span>):
+    <span class="var">user_id</span>: <span class="var">int</span>
+    <span class="var">top_k</span>:   <span class="var">int</span> = <span class="num">10</span>
+
+<span class="kw">class</span> <span class="fn">MovieOut</span>(<span class="var">BaseModel</span>):
+    <span class="var">item_id</span>:  <span class="var">int</span>
+    <span class="var">title</span>:    <span class="var">str</span>
+    <span class="var">score</span>:    <span class="var">float</span>
+    <span class="var">poster</span>:   <span class="var">str</span> | <span class="var">None</span> = <span class="var">None</span></code></pre>
+        </div>
+      </div>
+
+      <div class="collapse" onclick="this.classList.toggle('open')">
+        <div class="collapse-header" style="border-left:3px solid var(--stage-rank);">
+          <span>&#129504;</span> <span>DLRM Model Class</span>
+          <span style="margin-left:auto; font-size:0.75rem; color:var(--text-dim);">models/dlrm.py</span>
+        </div>
+        <div class="collapse-body">
+          <pre style="padding:14px 16px; background:var(--bg-screen); border-radius:0 0 var(--radius-sm) var(--radius-sm); font-size:0.78rem; overflow-x:auto;"><code><span class="kw">class</span> <span class="fn">DLRM</span>(<span class="var">nn.Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="var">self</span>, <span class="var">num_users</span>, <span class="var">num_items</span>,
+                 <span class="var">embed_dim</span>=<span class="num">128</span>, <span class="var">dense_in</span>=<span class="num">2</span>):
+        <span class="var">self</span>.<span class="var">user_emb</span> = <span class="fn">nn.Embedding</span>(<span class="var">num_users</span>, <span class="var">embed_dim</span>)
+        <span class="var">self</span>.<span class="var">item_emb</span> = <span class="fn">nn.Embedding</span>(<span class="var">num_items</span>, <span class="var">embed_dim</span>)
+        <span class="var">self</span>.<span class="var">dense_bottom</span> = <span class="fn">nn.Linear</span>(<span class="var">dense_in</span>, <span class="var">embed_dim</span>)
+        <span class="var">self</span>.<span class="var">mlp</span> = <span class="fn">nn.Sequential</span>(
+            <span class="fn">nn.Linear</span>(<span class="num">384</span>, <span class="num">64</span>), <span class="fn">nn.ReLU</span>(),
+            <span class="fn">nn.Linear</span>(<span class="num">64</span>, <span class="num">32</span>),  <span class="fn">nn.ReLU</span>(),
+            <span class="fn">nn.Linear</span>(<span class="num">32</span>, <span class="num">1</span>),   <span class="fn">nn.Sigmoid</span>()
+        )</code></pre>
+        </div>
+      </div>
+
+      <div class="collapse" onclick="this.classList.toggle('open')">
+        <div class="collapse-header" style="border-left:3px solid var(--stage-serve);">
+          <span>&#128190;</span> <span>Weight Loading</span>
+          <span style="margin-left:auto; font-size:0.75rem; color:var(--text-dim);">lines 136&ndash;168</span>
+        </div>
+        <div class="collapse-body">
+          <pre style="padding:14px 16px; background:var(--bg-screen); border-radius:0 0 var(--radius-sm) var(--radius-sm); font-size:0.78rem; overflow-x:auto;"><code><span class="var">model</span> = <span class="fn">DLRM</span>(<span class="var">NUM_USERS</span>, <span class="var">NUM_ITEMS</span>)
+<span class="var">state</span> = <span class="var">torch</span>.<span class="fn">load</span>(<span class="var">MODEL_PATH</span>,
+                    <span class="var">map_location</span>=<span class="str">"cpu"</span>)
+<span class="var">model</span>.<span class="fn">load_state_dict</span>(<span class="var">state</span>)
+<span class="var">model</span>.<span class="fn">eval</span>()</code></pre>
+        </div>
+      </div>
+
+      <div class="collapse" onclick="this.classList.toggle('open')">
+        <div class="collapse-header" style="border-left:3px solid var(--curtain-red);">
+          <span>&#128640;</span> <span>FastAPI App + Routes</span>
+          <span style="margin-left:auto; font-size:0.75rem; color:var(--text-dim);">lines 172&ndash;260</span>
+        </div>
+        <div class="collapse-body">
+          <pre style="padding:14px 16px; background:var(--bg-screen); border-radius:0 0 var(--radius-sm) var(--radius-sm); font-size:0.78rem; overflow-x:auto;"><code><span class="var">app</span> = <span class="fn">FastAPI</span>(<span class="var">title</span>=<span class="str">"CinemaScopeAI"</span>)
+
+<span class="kw">@</span><span class="var">app</span>.<span class="fn">post</span>(<span class="str">"/recommend"</span>)
+<span class="kw">async def</span> <span class="fn">recommend</span>(<span class="var">req</span>: <span class="var">RecommendRequest</span>):
+    <span class="var">user_t</span> = <span class="var">torch</span>.<span class="fn">tensor</span>([<span class="var">req</span>.<span class="var">user_id</span>])
+    <span class="var">scores</span> = {}
+    <span class="kw">for</span> <span class="var">iid</span> <span class="kw">in</span> <span class="fn">range</span>(<span class="var">NUM_ITEMS</span>):
+        <span class="var">scores</span>[<span class="var">iid</span>] = <span class="var">model</span>(<span class="var">user_t</span>, ...).<span class="fn">item</span>()
+    <span class="kw">return</span> <span class="fn">sorted</span>(<span class="var">scores</span>, <span class="var">key</span>=...)[:<span class="var">req</span>.<span class="var">top_k</span>]</code></pre>
+        </div>
+      </div>
+
+      <div class="collapse" onclick="this.classList.toggle('open')">
+        <div class="collapse-header" style="border-left:3px solid var(--stage-ingest);">
+          <span>&#127916;</span> <span>TMDB Enrichment</span>
+          <span style="margin-left:auto; font-size:0.75rem; color:var(--text-dim);">lines 271&ndash;314</span>
+        </div>
+        <div class="collapse-body">
+          <pre style="padding:14px 16px; background:var(--bg-screen); border-radius:0 0 var(--radius-sm) var(--radius-sm); font-size:0.78rem; overflow-x:auto;"><code><span class="kw">async def</span> <span class="fn">enrich_with_tmdb</span>(<span class="var">title</span>: <span class="var">str</span>):
+    <span class="kw">async with</span> <span class="var">httpx</span>.<span class="fn">AsyncClient</span>() <span class="kw">as</span> <span class="var">client</span>:
+        <span class="var">resp</span> = <span class="kw">await</span> <span class="var">client</span>.<span class="fn">get</span>(
+            <span class="str">f"https://api.themoviedb.org/3/search/movie"</span>,
+            <span class="var">params</span>={<span class="str">"api_key"</span>: <span class="var">TMDB_KEY</span>,
+                    <span class="str">"query"</span>: <span class="var">title</span>}
+        )
+    <span class="kw">return</span> <span class="var">resp</span>.<span class="fn">json</span>()[<span class="str">"results"</span>][<span class="num">0</span>]</code></pre>
+        </div>
+      </div>
+
+    </div><!-- end file anatomy -->
+
+    <!-- ── SECTION 5: Sesame Street ── -->
+    <div class="ss-box" style="max-width:660px; margin:36px auto 0;">
+      <div style="font-weight:700; font-size:1rem; color:var(--reel-amber); margin-bottom:10px;">&#127967; Sesame Street Explains: The Scoring Booth</div>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75;">
+        Imagine the scoring booth at the Talent Show. At the top, two windows: one where numbers come in (how often does this monster attend shows?), and one where name badges come in (who IS this monster? which act IS this?).
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        The number window has a small helper who stretches 2 numbers into a longer list of 128. The badge window has two huge filing cabinets &mdash; one for every audience member (943 drawers), one for every performer (1682 drawers). Each drawer contains a bracelet with 128 colored beads.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        All three lists (the stretched numbers, the audience bracelet, the performer bracelet) get taped together into one MEGA list of 384 items. Then The Count carries this list through his shrinking factory: a big room (64), a medium room (32), and a tiny room (1). Out pops a single number between zero and one. That&rsquo;s the score!
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ========== TAB: STARTUP ========== -->
+<div class="tab-panel" id="tab-startup">
+<div class="controls" style="padding-top:20px;">
+  <button class="ctrl-btn play" onclick="playSeq('startup')">&#9654; Play Startup</button>
+  <button class="ctrl-btn" onclick="resetAll()">&#8635; Reset</button>
+</div>
+<div class="node-grid">
+  <div class="section-title">
+    <h2>Before the Show Starts &mdash; Setting Up the Theater</h2>
+    <p>7 things that happen before the first audience member walks in. Every piece of equipment gets set up, checked, and locked into place. Click any card to see the full story.</p>
+  </div>
+
+  <div class="node" data-phase="env" data-id="s-env" data-tab="startup" onclick="openNode('s-env')">
+    <div class="node-top">
+      <div class="node-icon">&#128273;</div>
+      <div class="node-info">
+        <div class="node-step">Phase 1</div>
+        <div class="node-name">Open the Secret Drawer</div>
+        <div class="node-role">Find the keys and passwords the theater needs</div>
+      </div>
+    </div>
+    <div class="node-desc">The theater manager opens a locked drawer and pulls out the secret keys needed to talk to the Movie Store later. If the keys are missing, the show can still start — but the Movie Store won't answer when we call.</div>
+  </div>
+  <div class="corridor" data-tab="startup"></div>
+
+  <div class="node" data-phase="config" data-id="s-config" data-tab="startup" onclick="openNode('s-config')">
+    <div class="node-top">
+      <div class="node-icon">&#9881;</div>
+      <div class="node-info">
+        <div class="node-step">Phase 2</div>
+        <div class="node-name">Check the Recipe Card</div>
+        <div class="node-role">Make sure every ingredient is listed before we start cooking</div>
+      </div>
+    </div>
+    <div class="node-desc">Big Bird reads the recipe card and checks: do we have every ingredient? If anything is missing, the show stops right here. A cake without sugar looks like a cake but tastes terrible.</div>
+  </div>
+  <div class="corridor" data-tab="startup"></div>
+
+  <div class="node" data-phase="schema" data-id="s-schema" data-tab="startup" onclick="openNode('s-schema')">
+    <div class="node-top">
+      <div class="node-icon">&#128220;</div>
+      <div class="node-info">
+        <div class="node-step">Phase 3</div>
+        <div class="node-name">Print the Menu Board</div>
+        <div class="node-role">Define exactly what customers can order and what they'll get back</div>
+      </div>
+    </div>
+    <div class="node-desc">Grover puts up the menu board at the service window. It says exactly what you can ask for (a guest number and a movie number) and exactly what you'll get back (a list of movie picks). If you order something that's not on the menu, you get turned away before the kitchen even hears about it.</div>
+  </div>
+  <div class="corridor" data-tab="startup"></div>
+
+  <div class="node" data-phase="model" data-id="s-model" data-tab="startup" onclick="openNode('s-model')" style="border-width:2px;">
+    <div class="node-top">
+      <div class="node-icon">&#129504;</div>
+      <div class="node-info">
+        <div class="node-step">Phase 4</div>
+        <div class="node-name">Build the Robot's Body</div>
+        <div class="node-role">Assemble the scoring machine — arms, legs, brain — but no knowledge yet</div>
+      </div>
+    </div>
+    <div class="node-desc">Elmo builds his robot friend. It has a place for 943 audience member badges, 1,682 performer badges, and a shrinking factory with three rooms that squeeze everything down to a single score. The robot looks great — but its brain is empty. It doesn't know anything yet.</div>
+    <div class="layer-viz">
+      <div class="layer-box"><div class="layer-bar" style="width:20px;height:12px;background:var(--stage-serve);"></div><div class="layer-label">cont:2</div></div>
+      <div class="layer-arrow">&rarr;</div>
+      <div class="layer-box"><div class="layer-bar" style="width:40px;height:40px;background:var(--projector-gold);"></div><div class="layer-label">emb:128</div></div>
+      <div class="layer-arrow">+</div>
+      <div class="layer-box"><div class="layer-bar" style="width:40px;height:40px;background:var(--projector-gold);"></div><div class="layer-label">emb:128</div></div>
+      <div class="layer-arrow">&rarr;</div>
+      <div class="layer-box"><div class="layer-bar" style="width:50px;height:50px;background:var(--spotlight-violet);"></div><div class="layer-label">384</div></div>
+      <div class="layer-arrow">&rarr;</div>
+      <div class="layer-box"><div class="layer-bar" style="width:30px;height:30px;background:var(--reel-amber);"></div><div class="layer-label">64</div></div>
+      <div class="layer-arrow">&rarr;</div>
+      <div class="layer-box"><div class="layer-bar" style="width:20px;height:20px;background:var(--reel-amber);"></div><div class="layer-label">32</div></div>
+      <div class="layer-arrow">&rarr;</div>
+      <div class="layer-box"><div class="layer-bar" style="width:10px;height:10px;background:var(--curtain-red);border-radius:50%;"></div><div class="layer-label">1</div></div>
+    </div>
+  </div>
+  <div class="corridor" data-tab="startup"></div>
+
+  <div class="node" data-phase="weights" data-id="s-weights" data-tab="startup" onclick="openNode('s-weights')">
+    <div class="node-top">
+      <div class="node-icon">&#128190;</div>
+      <div class="node-info">
+        <div class="node-step">Phase 5</div>
+        <div class="node-name">Send the Robot to School</div>
+        <div class="node-role">Load the notebook from a smarter robot who already studied 100,000 movies</div>
+      </div>
+    </div>
+    <div class="node-desc">Elmo's robot sits down and reads a notebook written by another robot who already watched 100,000 movie ratings. The notebook has 363,137 little facts. Now the robot knows which audience members like which performers — without watching a single show itself.</div>
+  </div>
+  <div class="corridor" data-tab="startup"></div>
+
+  <div class="node" data-phase="app" data-id="s-app" data-tab="startup" onclick="openNode('s-app')">
+    <div class="node-top">
+      <div class="node-icon">&#128640;</div>
+      <div class="node-info">
+        <div class="node-step">Phase 6</div>
+        <div class="node-name">Open the Shop Window</div>
+        <div class="node-role">Build the service counter where customers walk up and ask for movie picks</div>
+      </div>
+    </div>
+    <div class="node-desc">Cookie Monster has been dreaming about this moment. He finally has a building, equipment, and a robot brain full of knowledge. Now he puts up the sign: &ldquo;CinemaScopeAI &mdash; Movie Recommendations!&rdquo; and opens the service window to the street. The shop EXISTS now. It has a name on the door. But there are no shelves yet, no doorbell, no bouncer &mdash; those come next.</div>
+  </div>
+  <div class="corridor" data-tab="startup"></div>
+
+  <div class="node" data-phase="middleware" data-id="s-middleware" data-tab="startup" onclick="openNode('s-middleware')">
+    <div class="node-top">
+      <div class="node-icon">&#128737;</div>
+      <div class="node-info">
+        <div class="node-step">Phase 7</div>
+        <div class="node-name">Install the Doorbell, Bouncer, and Service Counters</div>
+        <div class="node-role">Set up everything that handles visitors before they reach the kitchen</div>
+      </div>
+    </div>
+    <div class="node-desc">Cookie Monster&rsquo;s shop gets three important additions. First, a DOORBELL &mdash; it goes &ldquo;ding!&rdquo; every time someone walks in, and writes down who came, what they wanted, how long they stayed, and whether they left happy. Second, a BOUNCER &mdash; if someone causes trouble or asks for something impossible, the bouncer handles it politely so Cookie Monster never has to stop cooking. Third, FIVE SERVICE COUNTERS &mdash; each one handles a different kind of request, from &ldquo;are you open?&rdquo; to &ldquo;recommend me some movies!&rdquo; Now the shop is fully operational.</div>
+  </div>
+</div>
+</div>
+
+<!-- ========== TAB: PREDICTION ========== -->
+<div class="tab-panel" id="tab-predict">
+<div class="controls" style="padding-top:20px;">
+  <button class="ctrl-btn play" onclick="playSeq('predict')">&#9654; Play Prediction</button>
+  <button class="ctrl-btn" onclick="resetAll()">&#8635; Reset</button>
+</div>
+<div class="node-grid">
+  <div class="section-title">
+    <h2>A Guest Asks for Movie Picks &mdash; What Happens Next</h2>
+    <p>7 steps from "recommend me something!" to a list of 5 perfect movies. Click any card to see the full story behind each step.</p>
+  </div>
+
+  <div class="node" data-phase="validate" data-id="p-validate" data-tab="predict" onclick="openNode('p-validate')">
+    <div class="node-top">
+      <div class="node-icon">&#128272;</div>
+      <div class="node-info">
+        <div class="node-step">Step 1</div>
+        <div class="node-name">The Height Check</div>
+        <div class="node-role">Make sure the guest and the movie actually exist before we do anything</div>
+      </div>
+    </div>
+    <div class="node-desc">Big Bird stands at the door of the roller coaster with a measuring stick and a checklist. Before anyone gets on, he checks: Is the ride working? Is this a real guest from our list of 943 audience members? Is this a real movie from our catalog of 1,682 films? Did they bring everything we need? If ANYTHING is wrong, Big Bird politely turns them away before the ride even starts. Nobody gets on with a fake ticket.</div>
+  </div>
+  <div class="corridor" data-tab="predict"></div>
+
+  <div class="node" data-phase="tensor" data-id="p-tensor" data-tab="predict" onclick="openNode('p-tensor')">
+    <div class="node-top">
+      <div class="node-icon">&#129518;</div>
+      <div class="node-info">
+        <div class="node-step">Step 2</div>
+        <div class="node-name">The Number Painter</div>
+        <div class="node-role">Translate the guest's request into a language the robot brain can read</div>
+      </div>
+    </div>
+    <div class="node-desc">The guest walks in speaking plain English: 'I'm guest number 42 and I want to know about movie 567. My average rating is 3.8 and I've watched 45 movies.' But the robot brain doesn't speak English — it only understands numbers arranged in a very specific way. So Elmo's translator friend takes the guest's words and carefully paints them into number-cards that the robot can read. Get the format wrong and the robot won't crash — it'll just quietly give the wrong answer, which is even worse.</div>
+  </div>
+  <div class="corridor" data-tab="predict"></div>
+
+  <div class="node" data-phase="embed" data-id="p-embed" data-tab="predict" onclick="openNode('p-embed')">
+    <div class="node-top">
+      <div class="node-icon">&#128300;</div>
+      <div class="node-info">
+        <div class="node-step">Step 3</div>
+        <div class="node-name">Read the Name Badges</div>
+        <div class="node-role">Pull out the secret bead patterns that describe who this guest is and what this movie is</div>
+      </div>
+    </div>
+    <div class="node-desc">Grover runs to two enormous filing cabinets. The first cabinet has 943 drawers — one for every audience member who's ever visited the Talent Show. He opens drawer #42 and pulls out a bracelet with 128 colored beads. The pattern of colors captures everything the system learned about this guest: what they like, what they hate, when they watch. Then Grover opens the second cabinet (1,682 drawers — one for every movie) and pulls out movie #567's bracelet. Same idea: 128 beads that capture what kind of movie this is. Now we have two secret identity patterns.</div>
+  </div>
+  <div class="corridor" data-tab="predict"></div>
+
+  <div class="node" data-phase="fuse" data-id="p-fuse" data-tab="predict" onclick="openNode('p-fuse')">
+    <div class="node-top">
+      <div class="node-icon">&#128279;</div>
+      <div class="node-info">
+        <div class="node-step">Step 4</div>
+        <div class="node-name">Smash the Plates Together</div>
+        <div class="node-role">Combine everything we know about the guest, the movie, and the context into one mega-sandwich</div>
+      </div>
+    </div>
+    <div class="node-desc">Cookie Monster has THREE plates of information sitting in front of him. Plate one: what we know about the guest's habits (how often they watch, how they rate things) — stretched into a long list of 128 items. Plate two: the guest's bead bracelet — another 128 items. Plate three: the movie's bead bracelet — another 128 items. None of these plates alone can answer the question 'will this guest like this movie?' So Cookie Monster does what Cookie Monster does best: he SMASHES all three plates together into one MEGA SANDWICH of 384 items. Now every bite contains a little bit of everything.</div>
+    <div class="layer-viz">
+      <div class="layer-box"><div class="layer-bar" style="width:30px;height:30px;background:var(--stage-serve);"></div><div class="layer-label">habits</div></div>
+      <div class="layer-arrow">+</div>
+      <div class="layer-box"><div class="layer-bar" style="width:30px;height:30px;background:var(--projector-gold);"></div><div class="layer-label">guest badge</div></div>
+      <div class="layer-arrow">+</div>
+      <div class="layer-box"><div class="layer-bar" style="width:30px;height:30px;background:var(--projector-gold);"></div><div class="layer-label">movie badge</div></div>
+      <div class="layer-arrow">=</div>
+      <div class="layer-box"><div class="layer-bar" style="width:50px;height:50px;background:var(--spotlight-violet);"></div><div class="layer-label">mega sandwich</div></div>
+    </div>
+  </div>
+  <div class="corridor" data-tab="predict"></div>
+
+  <div class="node" data-phase="mlp" data-id="p-mlp" data-tab="predict" onclick="openNode('p-mlp')" style="border-width:2px;">
+    <div class="node-top">
+      <div class="node-icon">&#129504;</div>
+      <div class="node-info">
+        <div class="node-step">Step 5</div>
+        <div class="node-name">The Count's Shrinking Machine</div>
+        <div class="node-role">Squeeze the mega-sandwich through smaller and smaller rooms until one score pops out</div>
+      </div>
+    </div>
+    <div class="node-desc">The Count takes Cookie Monster's mega-sandwich and carries it into his factory. The factory has three rooms, and each room is SMALLER than the last. In the first room &mdash; the big one &mdash; helpers examine every ingredient from every angle. They write notes about which combinations matter. But between rooms, there's a strict taste-tester who throws out anything sour (if a flavor is negative, it goes in the trash &mdash; only positive flavors survive). The second room is medium-sized. Only the important notes from Room One fit through the door. The fluff gets left behind. Taste-tester checks again. The third room is TINY &mdash; just enough space for a single number. Everything gets squeezed and concentrated into one score between 'definitely not' and 'absolutely yes.' The Count holds it up: 'ZERO POINT EIGHT SEVEN! This guest will probably enjoy this movie! Ah ah ah!'</div>
+    <div class="layer-viz">
+      <div class="layer-box"><div class="layer-bar" style="width:50px;height:50px;background:var(--spotlight-violet);"></div><div class="layer-label">mega sandwich</div></div>
+      <div class="layer-arrow">&rarr;</div>
+      <div class="layer-box"><div class="layer-bar" style="width:30px;height:30px;background:var(--reel-amber);"></div><div class="layer-label">big room</div></div>
+      <div class="layer-arrow">&rarr;</div>
+      <div class="layer-box"><div class="layer-bar" style="width:20px;height:20px;background:var(--reel-amber);"></div><div class="layer-label">medium room</div></div>
+      <div class="layer-arrow">&rarr;</div>
+      <div class="layer-box"><div class="layer-bar" style="width:10px;height:10px;background:var(--curtain-red);border-radius:50%;"></div><div class="layer-label">score!</div></div>
+      <div class="layer-arrow">&rarr;</div>
+      <div class="layer-box"><div class="layer-bar" style="width:14px;height:14px;background:var(--stage-serve);border-radius:50%;"></div><div class="layer-label">squish 0-1</div></div>
+    </div>
+  </div>
+  <div class="corridor" data-tab="predict"></div>
+
+  <div class="node" data-phase="tmdb" data-id="p-tmdb" data-tab="predict" onclick="openNode('p-tmdb')">
+    <div class="node-top">
+      <div class="node-icon">&#127909;</div>
+      <div class="node-info">
+        <div class="node-step">Step 6</div>
+        <div class="node-name">Big Bird Visits the Movie Library</div>
+        <div class="node-role">Run to the Movie Library and bring back real titles, posters, and descriptions</div>
+      </div>
+    </div>
+    <div class="node-desc">The scoring machine just produced a number: 0.87. But a number is useless to a person. You can&#39;t watch &#39;0.87.&#39; So Big Bird grabs his library card and runs to the Neighborhood Movie Library. He asks: &#39;What popular movies do you have on the shelves today?&#39; The librarian hands him a stack of about 20 movies, each with a title, a poster, the year it came out, and a short description. Big Bird carries the whole stack back to the theater. Now we have REAL movies with REAL information &mdash; not just numbers. But what if the library is closed? Big Bird comes back empty-handed: &#39;Sorry, the library was shut. We can only show you the score today, not the posters.&#39;</div>
+  </div>
+  <div class="corridor" data-tab="predict"></div>
+
+  <div class="node" data-phase="rank" data-id="p-rank" data-tab="predict" onclick="openNode('p-rank')">
+    <div class="node-top">
+      <div class="node-icon">&#127942;</div>
+      <div class="node-info">
+        <div class="node-step">Step 7</div>
+        <div class="node-name">The Count Picks the Winners</div>
+        <div class="node-role">Line up all the movies by how close they match, and hand the guest the top 5</div>
+      </div>
+    </div>
+    <div class="node-desc"><strong style="color:var(--text-muted);">Legacy /predict endpoint:</strong> The Count has two things: the robot&#39;s score (0.87) and Big Bird&#39;s stack of 20 real movies (each with its own score from the library). Now The Count plays his favorite game &mdash; he lines up all 20 movies and measures how CLOSE each one&#39;s score is to 0.87. Movie A scored 0.85? That&#39;s only 0.02 away &mdash; almost a perfect match! Movie B scored 0.40? That&#39;s 0.47 away &mdash; too far. The Count sorts them from closest to farthest, picks the TOP 5, and announces: &#39;NUMBER ONE! NUMBER TWO! NUMBER THREE! FOUR! FIVE! Ah ah ah!&#39; Each winner comes wrapped in the full package: a title to read, a poster to look at, the year it came out, and a description of what it&#39;s about.</div>
+  </div>
+
+  <div class="corridor" data-tab="predict"></div>
+
+  <div class="node" data-phase="recommend" data-id="p-recommend" data-tab="predict" onclick="openNode('p-recommend')" style="border:2px solid var(--projector-gold);">
+    <div class="node-top">
+      <div class="node-icon">&#127775;</div>
+      <div class="node-info">
+        <div class="node-step">Step 8</div>
+        <div class="node-name">Per-User Recommendations</div>
+        <div class="node-role">NEW /recommend/{user_id} &mdash; the model scores ALL 1682 items for one user</div>
+      </div>
+    </div>
+    <div class="node-desc"><strong style="color:var(--projector-gold);">New /recommend/{user_id} endpoint:</strong> Instead of predicting a single user+item pair and matching against TMDB popularity, this endpoint does REAL personalization. Given a user_id, it runs ONE forward pass through the DLRM for ALL 1,682 items in the catalogue. Each item gets a predicted score between 0 and 1. The top-K highest scores (default 10) are returned, each enriched with movie metadata (title, genres, year). No TMDB popularity involved &mdash; the model itself decides the ranking. This is the difference between &ldquo;here are popular movies near your vibe&rdquo; and &ldquo;here are the specific movies the model thinks YOU will love.&rdquo;</div>
+  </div>
+</div>
+</div>
+
+<!-- ========== TAB: EMBEDDINGS ========== -->
+<div class="tab-panel" id="tab-embeddings">
+  <div class="panel-inner">
+    <h2 class="section-heading" style="text-align:center; font-size:1.8rem; margin-bottom:12px;">&#128737; The Embedding Vault</h2>
+    <p style="text-align:center; color:var(--text-muted); max-width:640px; margin:0 auto 36px; font-size:0.95rem;">Where 93% of the model's knowledge lives &mdash; learned identity fingerprints for every user and every movie.</p>
+
+    <!-- ── SECTION 1: The Problem ── -->
+    <div style="max-width:700px; margin:0 auto 36px; background:rgba(232,184,48,0.06); border:2px solid var(--projector-gold-dim); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--projector-gold); margin-bottom:10px;">&#9888;&#65039; The Problem: IDs Are Meaningless</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        User 42 and Movie 567 are just numbers. Numbers tell you nothing about preferences. You need a way to capture <strong style="color:var(--text-marquee);">WHO</strong> someone is and <strong style="color:var(--text-marquee);">WHAT</strong> something is &mdash; not just their ID number.
+      </p>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        Embeddings solve this: they replace every bare ID with a <strong style="color:var(--stage-embed);">learned fingerprint</strong> &mdash; a list of 128 numbers that captures taste, genre affinity, mood, and more. The model discovers these patterns on its own during training.
+      </p>
+    </div>
+
+    <!-- ── SECTION 2: Three ID Cards ── -->
+    <h3 style="text-align:center; font-size:1.3rem; color:var(--text-marquee); margin-bottom:18px;">&#127380; The Three Embedding Tables</h3>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; max-width:840px; margin:0 auto 40px;">
+
+      <!-- Card 1: User Embeddings -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-top:3px solid var(--stage-embed); border-radius:var(--radius); padding:20px; transition:transform var(--transition), border-color var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='var(--border-glow)';" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='var(--border)';">
+        <div style="font-size:2rem; margin-bottom:8px;">&#128100;</div>
+        <div style="font-weight:700; color:var(--text-marquee); margin-bottom:4px;">User Embeddings</div>
+        <div style="font-size:0.8rem; color:var(--stage-embed); font-weight:600; margin-bottom:10px;">943 users &times; 128 dimensions</div>
+        <div style="font-size:0.82rem; color:var(--projector-gold); font-weight:600; margin-bottom:8px;">120,704 parameters (33% of model)</div>
+        <div style="font-size:0.85rem; color:var(--text-muted); line-height:1.55;">Each user gets a unique fingerprint of 128 numbers, learned from their viewing history.</div>
+      </div>
+
+      <!-- Card 2: Item Embeddings -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-top:3px solid var(--stage-embed); border-radius:var(--radius); padding:20px; transition:transform var(--transition), border-color var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='var(--border-glow)';" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='var(--border)';">
+        <div style="font-size:2rem; margin-bottom:8px;">&#127902;</div>
+        <div style="font-weight:700; color:var(--text-marquee); margin-bottom:4px;">Item Embeddings</div>
+        <div style="font-size:0.8rem; color:var(--stage-embed); font-weight:600; margin-bottom:10px;">1,682 movies &times; 128 dimensions</div>
+        <div style="font-size:0.82rem; color:var(--projector-gold); font-weight:600; margin-bottom:8px;">215,296 parameters (59% of model)</div>
+        <div style="font-size:0.85rem; color:var(--text-muted); line-height:1.55;">Each movie gets a unique fingerprint of 128 numbers, learned from who watched it.</div>
+      </div>
+
+      <!-- Card 3: Dense Projection -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-top:3px solid var(--stage-embed); border-radius:var(--radius); padding:20px; transition:transform var(--transition), border-color var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='var(--border-glow)';" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='var(--border)';">
+        <div style="font-size:2rem; margin-bottom:8px;">&#128200;</div>
+        <div style="font-weight:700; color:var(--text-marquee); margin-bottom:4px;">Dense Projection</div>
+        <div style="font-size:0.8rem; color:var(--stage-embed); font-weight:600; margin-bottom:10px;">2 features &rarr; 128 dimensions</div>
+        <div style="font-size:0.82rem; color:var(--projector-gold); font-weight:600; margin-bottom:8px;">384 parameters (&lt;1% of model)</div>
+        <div style="font-size:0.85rem; color:var(--text-muted); line-height:1.55;">Raw numbers (avg rating, watch count) get stretched into 128 dimensions to match.</div>
+      </div>
+
+    </div>
+
+    <!-- ── SECTION 3: What Does a 128-d Vector Look Like? ── -->
+    <h3 style="text-align:center; font-size:1.3rem; color:var(--text-marquee); margin-bottom:18px;">&#127912; What Does a 128-Dimension Vector Look Like?</h3>
+    <div style="max-width:700px; margin:0 auto 20px;">
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:0.82rem; font-weight:600; color:var(--text-marquee); margin-bottom:6px;">User 42's fingerprint</div>
+        <div id="embed-viz-user42" style="display:flex; gap:1px; border-radius:var(--radius-sm); overflow:hidden; height:18px;"></div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:0.82rem; font-weight:600; color:var(--text-marquee); margin-bottom:6px;">User 87's fingerprint <span style="color:var(--stage-serve); font-size:0.75rem; font-weight:400;">&mdash; similar taste to User 42</span></div>
+        <div id="embed-viz-user87" style="display:flex; gap:1px; border-radius:var(--radius-sm); overflow:hidden; height:18px;"></div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:0.82rem; font-weight:600; color:var(--text-marquee); margin-bottom:6px;">User 500's fingerprint <span style="color:var(--curtain-red-light); font-size:0.75rem; font-weight:400;">&mdash; very different taste</span></div>
+        <div id="embed-viz-user500" style="display:flex; gap:1px; border-radius:var(--radius-sm); overflow:hidden; height:18px;"></div>
+      </div>
+
+    </div>
+    <div style="max-width:700px; margin:0 auto 40px; background:rgba(6,201,161,0.06); border:1px solid rgba(6,201,161,0.2); border-radius:var(--radius-sm); padding:14px 18px;">
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.7;">
+        <strong style="color:var(--stage-embed);">Notice the pattern:</strong> Similar users have similar color strips. Users who watch the same movies end up with similar numbers &mdash; even though nobody told the system to do this. The patterns emerge from training.
+      </p>
+    </div>
+
+    <!-- ── SECTION 4: How Similarity Works ── -->
+    <h3 style="text-align:center; font-size:1.3rem; color:var(--text-marquee); margin-bottom:18px;">&#128207; How Similarity Works</h3>
+    <div style="max-width:600px; margin:0 auto 40px;">
+
+      <!-- Pair 1 -->
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+        <div style="min-width:200px; font-size:0.85rem; color:var(--text-main); text-align:right;">User 42 vs User 87</div>
+        <div style="flex:1; background:var(--bg-seat); border-radius:20px; height:14px; overflow:hidden; border:1px solid var(--border);">
+          <div style="width:91%; height:100%; background:linear-gradient(90deg, var(--stage-serve), var(--stage-embed)); border-radius:20px;"></div>
+        </div>
+        <div style="min-width:40px; font-size:0.82rem; font-weight:700; color:var(--stage-serve);">0.91</div>
+      </div>
+
+      <!-- Pair 2 -->
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+        <div style="min-width:200px; font-size:0.85rem; color:var(--text-main); text-align:right;">User 42 vs User 500</div>
+        <div style="flex:1; background:var(--bg-seat); border-radius:20px; height:14px; overflow:hidden; border:1px solid var(--border);">
+          <div style="width:23%; height:100%; background:linear-gradient(90deg, var(--curtain-red), var(--curtain-red-light)); border-radius:20px;"></div>
+        </div>
+        <div style="min-width:40px; font-size:0.82rem; font-weight:700; color:var(--curtain-red-light);">0.23</div>
+      </div>
+
+      <!-- Pair 3 -->
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+        <div style="min-width:200px; font-size:0.85rem; color:var(--text-main); text-align:right;">Toy Story vs Finding Nemo</div>
+        <div style="flex:1; background:var(--bg-seat); border-radius:20px; height:14px; overflow:hidden; border:1px solid var(--border);">
+          <div style="width:88%; height:100%; background:linear-gradient(90deg, var(--stage-serve), var(--stage-embed)); border-radius:20px;"></div>
+        </div>
+        <div style="min-width:40px; font-size:0.82rem; font-weight:700; color:var(--stage-serve);">0.88</div>
+      </div>
+
+      <!-- Pair 4 -->
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+        <div style="min-width:200px; font-size:0.85rem; color:var(--text-main); text-align:right;">Toy Story vs The Godfather</div>
+        <div style="flex:1; background:var(--bg-seat); border-radius:20px; height:14px; overflow:hidden; border:1px solid var(--border);">
+          <div style="width:15%; height:100%; background:linear-gradient(90deg, var(--curtain-red), var(--curtain-red-light)); border-radius:20px;"></div>
+        </div>
+        <div style="min-width:40px; font-size:0.82rem; font-weight:700; color:var(--curtain-red-light);">0.15</div>
+      </div>
+
+    </div>
+
+    <!-- ── SECTION 5: Key Insight Box ── -->
+    <div style="max-width:700px; margin:0 auto 36px; background:rgba(232,184,48,0.06); border:2px solid var(--projector-gold-dim); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--projector-gold); margin-bottom:10px;">&#128161; Key Insight</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        <strong style="color:var(--text-marquee);">93% of this model's brain power is just these lookup tables.</strong> The MLP is tiny (8%). The embeddings are where the real knowledge lives &mdash; learned patterns about who likes what. When people say a model "knows" something, they usually mean: the information is baked into the embeddings.
+      </p>
+    </div>
+
+    <!-- ── SECTION 6: Sesame Street Box ── -->
+    <div class="ss-box" style="max-width:660px; margin:36px auto 0;">
+      <div style="font-weight:700; font-size:1rem; color:var(--reel-amber); margin-bottom:10px;">&#127775; Grover's Secret Name Badges</div>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75;">
+        Every monster arriving at the Talent Show gets a name badge from Grover. But these aren&rsquo;t ordinary badges with just a name. Each badge has a long row of colored beads &mdash; and the pattern is different for every monster.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        Grover didn&rsquo;t choose the colors. The bead patterns <strong style="color:var(--reel-amber);">LEARNED</strong> from watching which monsters go to the same acts, sit in the same seats, and clap at the same jokes.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        After a while, something amazing happens: Dracula&rsquo;s badge and Vampire Steve&rsquo;s badge look almost <strong style="color:var(--reel-amber);">IDENTICAL</strong> &mdash; lots of dark red beads, no yellow beads. But Dracula&rsquo;s badge and Frankenstein&rsquo;s badge look completely <strong style="color:var(--reel-amber);">DIFFERENT</strong>.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        &ldquo;Aha!&rdquo; says Grover. &ldquo;I don&rsquo;t even need to know their names! I just hold two badges next to each other and I can tell instantly how similar they are!&rdquo;
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:14px; padding-top:12px; border-top:1px dashed rgba(212,135,62,0.2);">
+        Names are just labels. They don&rsquo;t tell you what someone is <em>like</em>. But a secret pattern of beads &mdash; learned from watching real behavior &mdash; captures the <strong style="color:var(--reel-amber-light);">ESSENCE</strong> of who someone is. Similar monsters get similar badges. That&rsquo;s how you find good matches.
+      </p>
+    </div>
+
+    <!-- ── Embedding Viz Script ── -->
+    <script>
+    (function() {
+      function seededRandom(seed) {
+        var x = Math.sin(seed) * 10000;
+        return x - Math.floor(x);
+      }
+
+      function hslColor(h, s, l) {
+        return 'hsl(' + h + ',' + s + '%,' + l + '%)';
+      }
+
+      function generateStrip(containerId, baseHue, hueRange, seed) {
+        var container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        for (var i = 0; i < 128; i++) {
+          var span = document.createElement('span');
+          var r = seededRandom(seed + i);
+          var hue = baseHue + (r * hueRange) - (hueRange / 2);
+          var sat = 50 + seededRandom(seed + i + 1000) * 40;
+          var lit = 30 + seededRandom(seed + i + 2000) * 35;
+          span.style.cssText = 'display:inline-block;width:4px;height:18px;background:' + hslColor(hue, sat, lit) + ';';
+          container.appendChild(span);
+        }
+      }
+
+      // User 42 and 87: blues/purples (hue ~240), similar seeds
+      generateStrip('embed-viz-user42', 245, 50, 42);
+      generateStrip('embed-viz-user87', 250, 50, 44);   // close seed = similar pattern
+      // User 500: reds/oranges (hue ~20), different seed
+      generateStrip('embed-viz-user500', 20, 50, 500);
+    })();
+    </script>
+
+  </div>
+</div>
+
+<!-- ========== TAB: BRAIN SCAN ========== -->
+<div class="tab-panel" id="tab-brainscan">
+  <div class="panel-inner">
+    <h2 class="section-heading" style="text-align:center; font-size:1.8rem; margin-bottom:12px;">Brain Scan</h2>
+    <p style="text-align:center; color:var(--text-muted); max-width:660px; margin:0 auto 8px; font-size:0.92rem;">MLP Deep-Dive &mdash; "The Narrowing Tunnel"</p>
+
+    <!-- ── SECTION 1: Introduction ── -->
+    <div style="max-width:660px; margin:28px auto 0; background:var(--bg-seat); border:1px solid var(--border); border-radius:var(--radius); padding:20px 22px;">
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        Cookie Monster just smashed three plates of information together into one mega-sandwich of 384 ingredients. Now The Count has to turn that into a single score. How? By squeezing it through rooms that get smaller and smaller.
+      </p>
+    </div>
+
+    <!-- ── SECTION 2: The Narrowing Tunnel Visualization ── -->
+    <div style="max-width:660px; margin:32px auto 0;">
+      <h3 style="font-family:'Playfair Display',serif; font-size:1.15rem; color:var(--projector-gold); text-align:center; margin-bottom:20px;">The Narrowing Tunnel</h3>
+
+      <!-- Layer 1: Big Room -->
+      <div style="width:100%; max-width:600px; margin:0 auto; background:var(--bg-seat); border:1px solid var(--border); border-left:3px solid var(--spotlight-violet); border-radius:var(--radius-sm); padding:16px 18px; text-align:center;">
+        <div style="font-weight:700; font-size:0.88rem; color:var(--text-marquee); margin-bottom:4px;">Room 1: The Big Room</div>
+        <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:10px;">384 &rarr; 64 (then ReLU filters out negatives)</div>
+        <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:5px;">
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--spotlight-violet);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--stage-embed);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--reel-amber);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--spotlight-violet-light);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--stage-ingest);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--stage-embed);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--curtain-red-light);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--spotlight-violet);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--reel-amber-light);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--stage-ingest);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--stage-embed);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--spotlight-violet-light);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--curtain-red);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--reel-amber);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--stage-ingest);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--spotlight-violet);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--stage-embed);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--reel-amber-light);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--curtain-red-light);display:inline-block;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--spotlight-violet-light);display:inline-block;"></span>
+        </div>
+      </div>
+
+      <!-- Connector -->
+      <div style="width:2px; height:20px; background:var(--border-glow); margin:0 auto;"></div>
+
+      <!-- Layer 2: Medium Room -->
+      <div style="width:70%; max-width:420px; margin:0 auto; background:var(--bg-seat); border:1px solid var(--border); border-left:3px solid var(--spotlight-violet); border-radius:var(--radius-sm); padding:16px 18px; text-align:center;">
+        <div style="font-weight:700; font-size:0.88rem; color:var(--text-marquee); margin-bottom:4px;">Room 2: The Medium Room</div>
+        <div style="font-size:0.78rem; color:var(--text-muted);">64 &rarr; 32 (then ReLU again)</div>
+      </div>
+
+      <!-- Connector -->
+      <div style="width:2px; height:20px; background:var(--border-glow); margin:0 auto;"></div>
+
+      <!-- Layer 3: Small Room -->
+      <div style="width:40%; max-width:240px; margin:0 auto; background:var(--bg-seat); border:1px solid var(--border); border-left:3px solid var(--spotlight-violet); border-radius:var(--radius-sm); padding:16px 18px; text-align:center;">
+        <div style="font-weight:700; font-size:0.88rem; color:var(--text-marquee); margin-bottom:4px;">Room 3: The Small Room</div>
+        <div style="font-size:0.78rem; color:var(--text-muted);">32 &rarr; 1 (one single number)</div>
+      </div>
+
+      <!-- Connector -->
+      <div style="width:2px; height:20px; background:var(--border-glow); margin:0 auto;"></div>
+
+      <!-- Layer 4: The Score -->
+      <div style="width:20%; max-width:120px; margin:0 auto; background:var(--bg-seat); border:2px solid var(--projector-gold); border-radius:var(--radius-sm); padding:14px 12px; text-align:center; box-shadow:0 0 18px rgba(232,184,48,0.15);">
+        <div style="font-family:'JetBrains Mono',monospace; font-size:1.6rem; font-weight:700; color:var(--projector-gold);">0.87</div>
+        <div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">Prediction: probably likes it!</div>
+      </div>
+    </div>
+
+    <!-- ── SECTION 3: What Happens in Each Room? ── -->
+    <div style="max-width:660px; margin:36px auto 0;">
+      <h3 style="font-family:'Playfair Display',serif; font-size:1.15rem; color:var(--projector-gold); text-align:center; margin-bottom:16px;">What Happens in Each Room?</h3>
+
+      <!-- Card 1 -->
+      <div class="collapse" onclick="this.classList.toggle('open')">
+        <div class="collapse-header" style="border-left:3px solid var(--spotlight-violet);">The Big Room (384 &rarr; 64) &mdash; 24,640 connections</div>
+        <div class="collapse-body">
+          <div style="padding:14px 16px; font-size:0.85rem; color:var(--text-main); line-height:1.75;">
+            <p>Every ingredient in the mega-sandwich gets examined. The room has 64 helpers, each looking at ALL 384 ingredients. They figure out: which combinations matter?</p>
+            <p style="margin-top:10px;">Then <strong style="color:var(--curtain-red-light);">ReLU</strong>: Anything negative gets thrown out. Only positive signals survive.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="collapse" onclick="this.classList.toggle('open')">
+        <div class="collapse-header" style="border-left:3px solid var(--spotlight-violet);">The Medium Room (64 &rarr; 32) &mdash; 2,080 connections</div>
+        <div class="collapse-body">
+          <div style="padding:14px 16px; font-size:0.85rem; color:var(--text-main); line-height:1.75;">
+            <p>The 64 surviving signals get examined again. Now only 32 helpers, looking for higher-order patterns.</p>
+            <p style="margin-top:10px;"><strong style="color:var(--curtain-red-light);">ReLU</strong> again &mdash; negatives get tossed.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="collapse" onclick="this.classList.toggle('open')">
+        <div class="collapse-header" style="border-left:3px solid var(--spotlight-violet);">The Tiny Room (32 &rarr; 1) &mdash; 33 connections</div>
+        <div class="collapse-body">
+          <div style="padding:14px 16px; font-size:0.85rem; color:var(--text-main); line-height:1.75;">
+            <p>32 signals compressed to 1. Then <strong style="color:var(--projector-gold);">Sigmoid</strong> squishes it between 0 and 1.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SECTION 4: Parameter Count ── -->
+    <div style="max-width:660px; margin:36px auto 0;">
+      <h3 style="font-family:'Playfair Display',serif; font-size:1.15rem; color:var(--projector-gold); text-align:center; margin-bottom:16px;">How Many Wires in the Brain?</h3>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-radius:var(--radius); padding:20px 22px;">
+        <!-- Parameter rows -->
+        <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:6px;">
+          <span style="color:var(--text-main);">Big Room: 384 &times; 64 + 64 bias</span>
+          <span style="color:var(--projector-gold); font-family:'JetBrains Mono',monospace; font-weight:600;">24,640</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:6px;">
+          <span style="color:var(--text-main);">Medium Room: 64 &times; 32 + 32 bias</span>
+          <span style="color:var(--projector-gold); font-family:'JetBrains Mono',monospace; font-weight:600;">2,080</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:14px;">
+          <span style="color:var(--text-main);">Tiny Room: 32 &times; 1 + 1 bias</span>
+          <span style="color:var(--projector-gold); font-family:'JetBrains Mono',monospace; font-weight:600;">33</span>
+        </div>
+
+        <!-- Stacked bar chart -->
+        <div style="display:flex; height:28px; border-radius:var(--radius-sm); overflow:hidden; margin-bottom:10px;">
+          <div style="width:92%; background:var(--spotlight-violet); display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:700; color:#fff;">24,640</div>
+          <div style="width:7.8%; background:var(--stage-embed); display:flex; align-items:center; justify-content:center; font-size:0.6rem; font-weight:700; color:#fff;">2,080</div>
+          <div style="width:0.2%; background:var(--projector-gold); min-width:4px;"></div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; font-size:0.85rem; font-weight:700; border-top:1px solid var(--border); padding-top:10px;">
+          <span style="color:var(--text-marquee);">Total MLP</span>
+          <span style="color:var(--projector-gold); font-family:'JetBrains Mono',monospace;">26,753 wires <span style="font-weight:400; color:var(--text-muted);">(only 7% of the model!)</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SECTION 5: ReLU Explainer ── -->
+    <div style="max-width:660px; margin:36px auto 0;">
+      <h3 style="font-family:'Playfair Display',serif; font-size:1.15rem; color:var(--projector-gold); text-align:center; margin-bottom:16px;">ReLU: The Bouncer</h3>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-radius:var(--radius); padding:20px 22px;">
+        <!-- Before ReLU -->
+        <div style="margin-bottom:14px;">
+          <div style="font-size:0.78rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Before ReLU</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; font-family:'JetBrains Mono',monospace; font-size:0.88rem;">
+            <span style="padding:5px 10px; border-radius:6px; background:rgba(196,35,59,0.15); color:var(--curtain-red-light);">-0.3</span>
+            <span style="padding:5px 10px; border-radius:6px; background:rgba(6,201,161,0.12); color:var(--stage-embed);">0.7</span>
+            <span style="padding:5px 10px; border-radius:6px; background:rgba(196,35,59,0.15); color:var(--curtain-red-light);">-1.2</span>
+            <span style="padding:5px 10px; border-radius:6px; background:rgba(6,201,161,0.12); color:var(--stage-embed);">0.4</span>
+            <span style="padding:5px 10px; border-radius:6px; background:rgba(196,35,59,0.15); color:var(--curtain-red-light);">-0.1</span>
+            <span style="padding:5px 10px; border-radius:6px; background:rgba(6,201,161,0.12); color:var(--stage-embed);">0.9</span>
+          </div>
+        </div>
+
+        <!-- Arrow -->
+        <div style="text-align:center; font-size:1.2rem; color:var(--text-muted); margin:4px 0;">&darr; ReLU &darr;</div>
+
+        <!-- After ReLU -->
+        <div>
+          <div style="font-size:0.78rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">After ReLU</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; font-family:'JetBrains Mono',monospace; font-size:0.88rem;">
+            <span style="padding:5px 10px; border-radius:6px; background:rgba(74,61,104,0.3); color:var(--text-dim); text-decoration:line-through;">-0.3 &rarr; <strong style="color:var(--text-muted); text-decoration:none;">0</strong></span>
+            <span style="padding:5px 10px; border-radius:6px; background:rgba(6,201,161,0.12); color:var(--stage-embed);">0.7</span>
+            <span style="padding:5px 10px; border-radius:6px; background:rgba(74,61,104,0.3); color:var(--text-dim); text-decoration:line-through;">-1.2 &rarr; <strong style="color:var(--text-muted); text-decoration:none;">0</strong></span>
+            <span style="padding:5px 10px; border-radius:6px; background:rgba(6,201,161,0.12); color:var(--stage-embed);">0.4</span>
+            <span style="padding:5px 10px; border-radius:6px; background:rgba(74,61,104,0.3); color:var(--text-dim); text-decoration:line-through;">-0.1 &rarr; <strong style="color:var(--text-muted); text-decoration:none;">0</strong></span>
+            <span style="padding:5px 10px; border-radius:6px; background:rgba(6,201,161,0.12); color:var(--stage-embed);">0.9</span>
+          </div>
+        </div>
+
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-top:14px; text-align:center; font-style:italic;">ReLU is brutal. Anything below zero? Gone.</p>
+      </div>
+    </div>
+
+    <!-- ── SECTION 6: Sesame Street Box ── -->
+    <div class="ss-box" style="max-width:660px; margin:36px auto 0;">
+      <div style="font-weight:700; font-size:1rem; color:var(--reel-amber); margin-bottom:10px;">&#127775; The Count's Squeeze-and-Score Factory</div>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; white-space:pre-line;">Cookie Monster just handed The Count a MEGA SANDWICH (from the last story). It's enormous. Hundreds of ingredients all mashed together. The Count stares at it. "How do I turn THIS into a score? This sandwich is too big to understand!"
+
+So The Count builds a factory with three rooms.
+
+Room One is BIG. The sandwich goes in and gets examined from every angle. Helpers poke it, sniff it, weigh every ingredient. They write notes: "lots of scary, some comedy, medium rain."
+
+But between rooms, there's a special taste tester. His name is ReLU. And ReLU has ONE rule: "If this flavor is sour, throw it out. If it's sweet, keep it." The sour flavors get tossed in the trash. Only the good stuff moves on.
+
+Room Two is SMALLER. Only the important notes fit through the door. The fluff gets left behind.
+
+Room Three is TINY. Just enough space for ONE number. Everything gets squeezed into a single score between zero and one. Zero means "this monster will HATE this act." One means "this monster will LOVE this act."
+
+The Count holds up the number. "ZERO POINT EIGHT SEVEN! That's close to one! Cookie Monster will probably enjoy Elmo's act! Ah ah ah!"
+
+Then at the very end, a gentle helper named Sigmoid makes sure the number can never go below zero or above one. Because you can't like something negative-three amount. It's zero to one. That's it.</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ========== TAB: DELIVERY ========== -->
+<div class="tab-panel" id="tab-delivery">
+  <div class="panel-inner" style="max-width:900px; margin:0 auto; padding:24px;">
+    <h2 class="section-heading" style="text-align:center; font-size:1.8rem; margin-bottom:28px;">Delivery Dock</h2>
+
+    <!-- ===== SECTION 1: THE PROBLEM ===== -->
+    <div style="background:rgba(196,35,59,0.08); border:1px solid rgba(196,35,59,0.25); border-radius:var(--radius); padding:22px 26px; margin-bottom:36px;">
+      <div style="font-weight:700; font-size:1rem; color:var(--curtain-red-light); margin-bottom:8px;">&#9888; The Problem</div>
+      <p style="font-size:0.92rem; color:var(--text-main); line-height:1.75;">
+        The model just produced a number: <strong>0.87</strong>. That&rsquo;s great for computers. But humans need movie titles, posters, descriptions, and ratings. The score alone is useless to a person.
+      </p>
+    </div>
+
+    <!-- ===== SECTION 2: THE ENRICHMENT PIPELINE ===== -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">The Enrichment Pipeline</h3>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-bottom:36px;">
+
+      <!-- Step 1 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-radius:var(--radius); padding:20px; text-align:center;">
+        <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--text-muted); margin-bottom:12px;">Step 1</div>
+        <div style="font-weight:700; font-size:0.95rem; color:var(--text-marquee); margin-bottom:16px;">The Score Arrives</div>
+        <div style="background:var(--bg-curtain); border:1px dashed var(--border); border-radius:var(--radius-sm); padding:28px 16px; margin-bottom:14px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:2rem; color:var(--text-muted);">0.87</span>
+        </div>
+        <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.6;">This is all the model knows. A number.</p>
+      </div>
+
+      <!-- Step 2 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--stage-ingest); border-radius:var(--radius); padding:20px; text-align:center;">
+        <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--text-muted); margin-bottom:12px;">Step 2</div>
+        <div style="font-weight:700; font-size:0.95rem; color:var(--text-marquee); margin-bottom:16px;">Big Bird Visits the Movie Store (TMDB)</div>
+        <div style="background:var(--bg-curtain); border:1px solid var(--border-glow); border-radius:var(--radius-sm); padding:14px 12px; text-align:left; font-family:'JetBrains Mono',monospace; font-size:0.72rem; line-height:1.7; margin-bottom:14px;">
+          <span style="color:#c084fc;">GET</span> <span style="color:#67e8f9;">api.themoviedb.org/3/movie/popular</span><br>
+          <span style="color:var(--text-muted);">Auth:</span> <span style="color:#86efac;">Bearer token</span><br>
+          <span style="color:var(--text-muted);">Timeout:</span> <span style="color:#fb923c;">10 seconds</span>
+        </div>
+        <p style="font-size:0.8rem; color:var(--text-main); line-height:1.6;">Big Bird runs to the Movie Store and asks: <em>&ldquo;What popular movies do you have today?&rdquo;</em></p>
+        <p style="font-size:0.75rem; color:var(--text-muted); line-height:1.5; margin-top:8px;">~20 movies come back with title, poster, year, description, score.</p>
+      </div>
+
+      <!-- Step 3 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--stage-embed); border-radius:var(--radius); padding:20px; text-align:center;">
+        <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--text-muted); margin-bottom:12px;">Step 3</div>
+        <div style="font-weight:700; font-size:0.95rem; color:var(--text-marquee); margin-bottom:16px;">The Catalog Returns</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;">
+          <div style="background:var(--bg-curtain); border-radius:var(--radius-sm); padding:10px 8px;">
+            <div style="font-size:0.75rem; font-weight:600; color:var(--text-marquee);">Inception</div>
+            <div style="font-size:0.65rem; color:var(--text-muted);">2010</div>
+            <span style="font-size:0.6rem; background:var(--stage-rank); color:#000; padding:1px 5px; border-radius:3px; font-weight:600;">8.4</span>
+          </div>
+          <div style="background:var(--bg-curtain); border-radius:var(--radius-sm); padding:10px 8px;">
+            <div style="font-size:0.75rem; font-weight:600; color:var(--text-marquee);">Parasite</div>
+            <div style="font-size:0.65rem; color:var(--text-muted);">2019</div>
+            <span style="font-size:0.6rem; background:var(--stage-rank); color:#000; padding:1px 5px; border-radius:3px; font-weight:600;">8.5</span>
+          </div>
+          <div style="background:var(--bg-curtain); border-radius:var(--radius-sm); padding:10px 8px;">
+            <div style="font-size:0.75rem; font-weight:600; color:var(--text-marquee);">Interstellar</div>
+            <div style="font-size:0.65rem; color:var(--text-muted);">2014</div>
+            <span style="font-size:0.6rem; background:var(--stage-rank); color:#000; padding:1px 5px; border-radius:3px; font-weight:600;">8.6</span>
+          </div>
+          <div style="background:var(--bg-curtain); border-radius:var(--radius-sm); padding:10px 8px;">
+            <div style="font-size:0.75rem; font-weight:600; color:var(--text-marquee);">The Matrix</div>
+            <div style="font-size:0.65rem; color:var(--text-muted);">1999</div>
+            <span style="font-size:0.6rem; background:var(--stage-rank); color:#000; padding:1px 5px; border-radius:3px; font-weight:600;">8.7</span>
+          </div>
+          <div style="background:var(--bg-curtain); border-radius:var(--radius-sm); padding:10px 8px; grid-column:1/-1;">
+            <div style="font-size:0.75rem; font-weight:600; color:var(--text-marquee);">Spirited Away</div>
+            <div style="font-size:0.65rem; color:var(--text-muted);">2001</div>
+            <span style="font-size:0.6rem; background:var(--stage-rank); color:#000; padding:1px 5px; border-radius:3px; font-weight:600;">8.6</span>
+          </div>
+        </div>
+        <p style="font-size:0.8rem; color:var(--text-main); line-height:1.6;">Now we have <strong>REAL</strong> movies with <strong>REAL</strong> metadata. Time to match them with the prediction.</p>
+      </div>
+
+    </div>
+
+    <!-- ===== SECTION 3: THE RANKING ARENA (LEGACY) ===== -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:6px; text-align:center;">The Ranking Arena <span style="font-size:0.75rem; color:var(--text-muted); font-family:sans-serif;">(Legacy /predict)</span></h3>
+    <p style="text-align:center; color:var(--text-muted); font-size:0.85rem; margin-bottom:20px;">Distance-Based Ranking &mdash; predicted score: <strong style="color:var(--projector-gold);">0.87</strong></p>
+
+    <div id="ranking-arena" style="background:var(--bg-seat); border:1px solid var(--border); border-radius:var(--radius); padding:20px 24px; margin-bottom:16px;">
+      <div class="rank-row" data-distance="0.02" style="display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:var(--radius-sm); margin-bottom:8px; background:rgba(6,201,161,0.08); border:1px solid rgba(6,201,161,0.2); transition: transform 0.5s cubic-bezier(.4,0,.2,1), opacity 0.5s ease;">
+        <div style="min-width:140px;"><strong style="color:var(--text-marquee);">Movie A</strong> <span style="font-size:0.75rem; color:var(--text-muted);">(score 0.85)</span></div>
+        <div style="flex:1; background:var(--bg-curtain); border-radius:4px; height:18px; overflow:hidden;">
+          <div style="width:2%; height:100%; background:var(--stage-embed); border-radius:4px; transition:width 0.5s ease;"></div>
+        </div>
+        <div style="min-width:80px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--stage-embed);">0.02 &#11088;</div>
+        <span style="font-size:0.7rem; background:var(--projector-gold); color:#000; padding:2px 8px; border-radius:4px; font-weight:700;">&#127942; Selected</span>
+      </div>
+      <div class="rank-row" data-distance="0.03" style="display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:var(--radius-sm); margin-bottom:8px; background:rgba(6,201,161,0.08); border:1px solid rgba(6,201,161,0.2); transition: transform 0.5s cubic-bezier(.4,0,.2,1), opacity 0.5s ease;">
+        <div style="min-width:140px;"><strong style="color:var(--text-marquee);">Movie B</strong> <span style="font-size:0.75rem; color:var(--text-muted);">(score 0.90)</span></div>
+        <div style="flex:1; background:var(--bg-curtain); border-radius:4px; height:18px; overflow:hidden;">
+          <div style="width:3%; height:100%; background:var(--stage-embed); border-radius:4px; transition:width 0.5s ease;"></div>
+        </div>
+        <div style="min-width:80px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--stage-embed);">0.03 &#11088;</div>
+        <span style="font-size:0.7rem; background:var(--projector-gold); color:#000; padding:2px 8px; border-radius:4px; font-weight:700;">&#127942; Selected</span>
+      </div>
+      <div class="rank-row" data-distance="0.09" style="display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:var(--radius-sm); margin-bottom:8px; background:rgba(240,160,48,0.06); border:1px solid rgba(240,160,48,0.2); transition: transform 0.5s cubic-bezier(.4,0,.2,1), opacity 0.5s ease;">
+        <div style="min-width:140px;"><strong style="color:var(--text-marquee);">Movie C</strong> <span style="font-size:0.75rem; color:var(--text-muted);">(score 0.78)</span></div>
+        <div style="flex:1; background:var(--bg-curtain); border-radius:4px; height:18px; overflow:hidden;">
+          <div style="width:9%; height:100%; background:var(--stage-rank); border-radius:4px; transition:width 0.5s ease;"></div>
+        </div>
+        <div style="min-width:80px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--stage-rank);">0.09</div>
+        <span style="font-size:0.7rem; background:var(--projector-gold); color:#000; padding:2px 8px; border-radius:4px; font-weight:700;">&#127942; Selected</span>
+      </div>
+      <div class="rank-row" data-distance="0.27" style="display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:var(--radius-sm); margin-bottom:8px; background:rgba(212,135,62,0.06); border:1px solid rgba(212,135,62,0.2); transition: transform 0.5s cubic-bezier(.4,0,.2,1), opacity 0.5s ease;">
+        <div style="min-width:140px;"><strong style="color:var(--text-marquee);">Movie D</strong> <span style="font-size:0.75rem; color:var(--text-muted);">(score 0.60)</span></div>
+        <div style="flex:1; background:var(--bg-curtain); border-radius:4px; height:18px; overflow:hidden;">
+          <div style="width:27%; height:100%; background:var(--reel-amber); border-radius:4px; transition:width 0.5s ease;"></div>
+        </div>
+        <div style="min-width:80px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--reel-amber);">0.27</div>
+        <span style="font-size:0.7rem; background:var(--projector-gold); color:#000; padding:2px 8px; border-radius:4px; font-weight:700;">&#127942; Selected</span>
+      </div>
+      <div class="rank-row" data-distance="0.47" style="display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:var(--radius-sm); margin-bottom:8px; background:rgba(196,35,59,0.06); border:1px solid rgba(196,35,59,0.15); opacity:0.5; transition: transform 0.5s cubic-bezier(.4,0,.2,1), opacity 0.5s ease;">
+        <div style="min-width:140px;"><strong style="color:var(--text-marquee);">Movie E</strong> <span style="font-size:0.75rem; color:var(--text-muted);">(score 0.40)</span></div>
+        <div style="flex:1; background:var(--bg-curtain); border-radius:4px; height:18px; overflow:hidden;">
+          <div style="width:47%; height:100%; background:var(--curtain-red); border-radius:4px; transition:width 0.5s ease;"></div>
+        </div>
+        <div style="min-width:80px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--curtain-red);">0.47</div>
+        <span style="font-size:0.7rem; color:var(--text-dim);">Not selected</span>
+      </div>
+      <div class="rank-row" data-distance="0.72" style="display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:var(--radius-sm); margin-bottom:0; background:rgba(196,35,59,0.06); border:1px solid rgba(196,35,59,0.15); opacity:0.5; transition: transform 0.5s cubic-bezier(.4,0,.2,1), opacity 0.5s ease;">
+        <div style="min-width:140px;"><strong style="color:var(--text-marquee);">Movie F</strong> <span style="font-size:0.75rem; color:var(--text-muted);">(score 0.15)</span></div>
+        <div style="flex:1; background:var(--bg-curtain); border-radius:4px; height:18px; overflow:hidden;">
+          <div style="width:72%; height:100%; background:var(--curtain-red); border-radius:4px; transition:width 0.5s ease;"></div>
+        </div>
+        <div style="min-width:80px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--curtain-red);">0.72</div>
+        <span style="font-size:0.7rem; color:var(--text-dim);">Not selected</span>
+      </div>
+    </div>
+
+    <div style="text-align:center; margin-bottom:36px;">
+      <button id="sort-ranking-btn" onclick="sortRankingArena()" style="background:var(--projector-gold); color:#000; border:none; padding:10px 28px; border-radius:var(--radius-sm); font-weight:700; font-size:0.9rem; cursor:pointer; transition:background 0.2s ease;">&#9650; Sort by Distance</button>
+    </div>
+
+    <!-- ===== SECTION 3b: THE PERSONALIZATION ARENA ===== -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:6px; text-align:center;">The Personalization Arena</h3>
+    <p style="text-align:center; color:var(--text-muted); font-size:0.85rem; margin-bottom:20px;">Per-User Item Scoring &mdash; <code style="font-size:0.8rem;">/recommend/{user_id}</code> scores ALL 1,682 items</p>
+
+    <div id="personalization-arena" style="background:var(--bg-seat); border:1px solid var(--border); border-radius:var(--radius); padding:20px 24px; margin-bottom:16px;">
+      <div style="text-align:center; font-size:0.8rem; color:var(--text-muted); margin-bottom:14px; font-style:italic;">User 42 &mdash; model scores every item, top 5 shown</div>
+      <div class="pers-row" data-score="0.94" style="display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:var(--radius-sm); margin-bottom:8px; background:rgba(6,201,161,0.1); border:1px solid rgba(6,201,161,0.25); transition: transform 0.5s cubic-bezier(.4,0,.2,1), opacity 0.5s ease;">
+        <div style="min-width:30px; font-weight:700; color:var(--projector-gold); font-size:1.1rem;">#1</div>
+        <div style="min-width:140px;"><strong style="color:var(--text-marquee);">The Godfather</strong> <span style="font-size:0.75rem; color:var(--text-muted);">(item 127)</span></div>
+        <div style="flex:1; background:var(--bg-curtain); border-radius:4px; height:18px; overflow:hidden;">
+          <div style="width:94%; height:100%; background:var(--stage-embed); border-radius:4px;"></div>
+        </div>
+        <div style="min-width:80px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--stage-embed);">0.94</div>
+      </div>
+      <div class="pers-row" data-score="0.91" style="display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:var(--radius-sm); margin-bottom:8px; background:rgba(6,201,161,0.08); border:1px solid rgba(6,201,161,0.2); transition: transform 0.5s cubic-bezier(.4,0,.2,1), opacity 0.5s ease;">
+        <div style="min-width:30px; font-weight:700; color:var(--projector-gold); font-size:1.1rem;">#2</div>
+        <div style="min-width:140px;"><strong style="color:var(--text-marquee);">Pulp Fiction</strong> <span style="font-size:0.75rem; color:var(--text-muted);">(item 482)</span></div>
+        <div style="flex:1; background:var(--bg-curtain); border-radius:4px; height:18px; overflow:hidden;">
+          <div style="width:91%; height:100%; background:var(--stage-embed); border-radius:4px;"></div>
+        </div>
+        <div style="min-width:80px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--stage-embed);">0.91</div>
+      </div>
+      <div class="pers-row" data-score="0.88" style="display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:var(--radius-sm); margin-bottom:8px; background:rgba(6,201,161,0.06); border:1px solid rgba(6,201,161,0.15); transition: transform 0.5s cubic-bezier(.4,0,.2,1), opacity 0.5s ease;">
+        <div style="min-width:30px; font-weight:700; color:var(--projector-gold); font-size:1.1rem;">#3</div>
+        <div style="min-width:140px;"><strong style="color:var(--text-marquee);">Casablanca</strong> <span style="font-size:0.75rem; color:var(--text-muted);">(item 963)</span></div>
+        <div style="flex:1; background:var(--bg-curtain); border-radius:4px; height:18px; overflow:hidden;">
+          <div style="width:88%; height:100%; background:var(--stage-embed); border-radius:4px;"></div>
+        </div>
+        <div style="min-width:80px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--stage-embed);">0.88</div>
+      </div>
+      <div class="pers-row" data-score="0.85" style="display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:var(--radius-sm); margin-bottom:8px; background:rgba(240,160,48,0.06); border:1px solid rgba(240,160,48,0.15); transition: transform 0.5s cubic-bezier(.4,0,.2,1), opacity 0.5s ease;">
+        <div style="min-width:30px; font-weight:700; color:var(--text-muted); font-size:1.1rem;">#4</div>
+        <div style="min-width:140px;"><strong style="color:var(--text-marquee);">Rear Window</strong> <span style="font-size:0.75rem; color:var(--text-muted);">(item 311)</span></div>
+        <div style="flex:1; background:var(--bg-curtain); border-radius:4px; height:18px; overflow:hidden;">
+          <div style="width:85%; height:100%; background:var(--stage-rank); border-radius:4px;"></div>
+        </div>
+        <div style="min-width:80px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--stage-rank);">0.85</div>
+      </div>
+      <div class="pers-row" data-score="0.82" style="display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:var(--radius-sm); margin-bottom:8px; background:rgba(240,160,48,0.06); border:1px solid rgba(240,160,48,0.15); transition: transform 0.5s cubic-bezier(.4,0,.2,1), opacity 0.5s ease;">
+        <div style="min-width:30px; font-weight:700; color:var(--text-muted); font-size:1.1rem;">#5</div>
+        <div style="min-width:140px;"><strong style="color:var(--text-marquee);">12 Angry Men</strong> <span style="font-size:0.75rem; color:var(--text-muted);">(item 1044)</span></div>
+        <div style="flex:1; background:var(--bg-curtain); border-radius:4px; height:18px; overflow:hidden;">
+          <div style="width:82%; height:100%; background:var(--stage-rank); border-radius:4px;"></div>
+        </div>
+        <div style="min-width:80px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--stage-rank);">0.82</div>
+      </div>
+      <div style="text-align:center; font-size:0.75rem; color:var(--text-dim); margin-top:12px; padding-top:10px; border-top:1px solid var(--border);">... 1,677 more items scored but not shown (scores range from 0.81 down to 0.03)</div>
+    </div>
+
+    <div style="background:rgba(138,79,207,0.06); border:1px solid rgba(138,79,207,0.2); border-radius:var(--radius); padding:16px 20px; margin-bottom:36px;">
+      <div style="font-weight:700; font-size:0.9rem; color:var(--stage-embed); margin-bottom:8px;">Old vs New &mdash; what changed?</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; font-size:0.82rem; color:var(--text-main); line-height:1.7;">
+        <div>
+          <div style="font-weight:600; color:var(--text-muted); margin-bottom:4px;">Legacy /predict</div>
+          &bull; Model predicts ONE score for ONE user+item pair<br>
+          &bull; TMDB provides ~20 popular movies<br>
+          &bull; Ranking = distance from prediction to TMDB scores<br>
+          &bull; Result depends on what is currently popular on TMDB
+        </div>
+        <div>
+          <div style="font-weight:600; color:var(--projector-gold); margin-bottom:4px;">New /recommend/{user_id}</div>
+          &bull; Model scores ALL 1,682 items for this user<br>
+          &bull; One forward pass, 1,682 predictions<br>
+          &bull; Ranking = direct model scores (highest wins)<br>
+          &bull; Result is pure personalization from learned embeddings
+        </div>
+      </div>
+    </div>
+
+    <script>
+    (function(){
+      var sorted = false;
+      window.sortRankingArena = function() {
+        var arena = document.getElementById('ranking-arena');
+        var rows = Array.from(arena.querySelectorAll('.rank-row'));
+        var btn = document.getElementById('sort-ranking-btn');
+        if (!sorted) {
+          rows.sort(function(a, b){ return parseFloat(a.dataset.distance) - parseFloat(b.dataset.distance); });
+          btn.innerHTML = '&#9660; Reset Order';
+        } else {
+          rows.sort(function(a, b){
+            var orig = ['0.02','0.03','0.09','0.27','0.47','0.72'];
+            return orig.indexOf(a.dataset.distance) - orig.indexOf(b.dataset.distance);
+          });
+          btn.innerHTML = '&#9650; Sort by Distance';
+        }
+        rows.forEach(function(r){ r.style.opacity = '0'; r.style.transform = 'translateY(10px)'; });
+        setTimeout(function(){
+          rows.forEach(function(r){ arena.appendChild(r); });
+          setTimeout(function(){
+            rows.forEach(function(r){
+              var d = parseFloat(r.dataset.distance);
+              r.style.opacity = d >= 0.47 ? '0.5' : '1';
+              r.style.transform = 'translateY(0)';
+            });
+          }, 50);
+        }, 300);
+        sorted = !sorted;
+      };
+    })();
+    </script>
+
+    <!-- ===== SECTION 4: ERROR SCENARIOS ===== -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">Error Scenarios</h3>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:36px;">
+      <div style="background:var(--bg-seat); border-left:3px solid var(--curtain-red); border-radius:var(--radius-sm); padding:16px;">
+        <div style="font-weight:700; font-size:0.9rem; color:var(--curtain-red-light); margin-bottom:8px;">&#10060; TMDB is Down</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Returns HTTP 502</div>
+        <p style="font-size:0.82rem; color:var(--text-main); line-height:1.6;">&ldquo;The Movie Store is closed. We can&rsquo;t show posters today.&rdquo;</p>
+      </div>
+      <div style="background:var(--bg-seat); border-left:3px solid var(--curtain-red); border-radius:var(--radius-sm); padding:16px;">
+        <div style="font-weight:700; font-size:0.9rem; color:var(--curtain-red-light); margin-bottom:8px;">&#10060; Invalid API Key</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Returns HTTP 401</div>
+        <p style="font-size:0.82rem; color:var(--text-main); line-height:1.6;">&ldquo;Big Bird forgot his membership card. Store won&rsquo;t let him in.&rdquo;</p>
+      </div>
+      <div style="background:var(--bg-seat); border-left:3px solid var(--curtain-red); border-radius:var(--radius-sm); padding:16px;">
+        <div style="font-weight:700; font-size:0.9rem; color:var(--curtain-red-light); margin-bottom:8px;">&#10060; Timeout</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">After 10 seconds</div>
+        <p style="font-size:0.82rem; color:var(--text-main); line-height:1.6;">&ldquo;Big Bird waited too long. The line was too long. He came back empty-handed.&rdquo;</p>
+      </div>
+    </div>
+
+    <!-- ===== SECTION 5: BEFORE & AFTER ===== -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">Before &amp; After Enrichment</h3>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:36px;">
+      <!-- BEFORE -->
+      <div style="background:#1a1a1a; border:1px solid #333; border-radius:var(--radius); padding:24px; text-align:center;">
+        <div style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1.5px; color:#666; margin-bottom:14px;">Before Enrichment</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:#888; line-height:2; background:#111; padding:16px; border-radius:var(--radius-sm);">
+          User 42<br>
+          Movie 567<br>
+          Score 0.87
+        </div>
+        <p style="font-size:0.75rem; color:#555; margin-top:12px;">Raw output. Just numbers. Meaningless to a person.</p>
+      </div>
+      <!-- AFTER -->
+      <div style="background:linear-gradient(135deg, #1a1428, #221a34); border:2px solid var(--projector-gold); border-radius:var(--radius); padding:24px; text-align:center; box-shadow:0 0 30px rgba(232,184,48,0.08);">
+        <div style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--projector-gold); margin-bottom:14px;">After Enrichment</div>
+        <div style="background:var(--bg-curtain); border-radius:var(--radius-sm); padding:18px; text-align:left;">
+          <div style="width:100%; height:80px; background:linear-gradient(135deg, #2a2040, #3d3060); border-radius:var(--radius-sm); margin-bottom:12px; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.7rem;">&#127910; Movie Poster</div>
+          <div style="font-weight:700; font-size:1rem; color:var(--text-marquee);">The Shawshank Redemption <span style="font-weight:400; color:var(--text-muted);">(1994)</span></div>
+          <div style="margin-top:6px;">
+            <span style="font-size:0.8rem; color:var(--projector-gold);">&#11088; 8.7/10</span>
+            <span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">Drama</span>
+          </div>
+          <p style="font-size:0.78rem; color:var(--text-main); line-height:1.6; margin-top:10px;">Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency&hellip;</p>
+        </div>
+        <p style="font-size:0.75rem; color:var(--projector-gold-dim); margin-top:12px;">Rich, meaningful, ready for the audience.</p>
+      </div>
+    </div>
+
+    <!-- ===== SECTION 6: SESAME STREET ===== -->
+    <div class="ss-box" style="max-width:720px; margin:36px auto 0; background:rgba(6,201,161,0.06); border:1px solid rgba(6,201,161,0.15);">
+      <div style="font-weight:700; font-size:1rem; color:var(--stage-embed); margin-bottom:12px;">&#127775; Big Bird Visits the Neighborhood Library</div>
+
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75;">
+        The scoring judges hand Big Bird a list of numbers:<br>
+        <em>&ldquo;Act 1: 0.87. Act 2: 0.45. Act 3: 0.92.&rdquo;</em>
+      </p>
+
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        Big Bird stares at the list. &ldquo;These are just numbers! The audience needs to know WHICH acts these are! What are they called? Who performs them? What kind of acts are they?&rdquo;
+      </p>
+
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        So Big Bird walks to the Neighborhood Library and says: &ldquo;Can you tell me about the acts on tonight&rsquo;s program?&rdquo;
+      </p>
+
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        The librarian pulls out a big catalog and reads:<br>
+        &ldquo;Act 1 is <strong>Elmo&rsquo;s Silly Dance</strong> &mdash; a comedy, 5 minutes, age 3+, very popular.&rdquo;<br>
+        &ldquo;Act 2 is <strong>Oscar&rsquo;s Trash Symphony</strong> &mdash; a music piece, 7 minutes, experimental.&rdquo;<br>
+        &ldquo;Act 3 is <strong>Cookie Monster&rsquo;s Cookie Tower</strong> &mdash; a stunt show, 3 minutes, audience favorite.&rdquo;
+      </p>
+
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        Now Big Bird has everything! He takes the numbers AND the descriptions back to the audience. He lines up all the acts by their score &mdash; highest first &mdash; and picks the top 5.
+      </p>
+
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        &ldquo;Here are tonight&rsquo;s TOP FIVE recommended acts! Number ONE: Cookie Monster&rsquo;s Cookie Tower! Number TWO: Elmo&rsquo;s Silly Dance!&rdquo;
+      </p>
+
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        But what if the library is closed? Big Bird comes back empty-handed: &ldquo;Sorry folks, the catalog is unavailable tonight. We can only show you the numbers.&rdquo;
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ========== TAB: PREP KITCHEN ========== -->
+<div class="tab-panel" id="tab-prepkitchen">
+  <div class="panel-inner" style="max-width:900px; margin:0 auto; padding:24px;">
+    <h2 class="section-heading" style="text-align:center; font-size:1.8rem; margin-bottom:12px;">&#127859; The Prep Kitchen</h2>
+    <p style="text-align:center; color:var(--text-muted); max-width:660px; margin:0 auto 36px; font-size:0.95rem;">Before any prediction happens, raw MovieLens data needs to be transformed. This shared module ensures training and serving use the exact same transforms &mdash; preventing train/serve skew.</p>
+
+    <!-- ── SECTION 1: Module Overview ── -->
+    <div style="max-width:700px; margin:0 auto 36px; background:rgba(232,184,48,0.06); border:2px solid var(--projector-gold-dim); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--projector-gold); margin-bottom:10px;">&#128193; data/preprocessing.py</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        A single Python module with <strong style="color:var(--text-marquee);">5 functions</strong> that handle everything from loading raw tab-separated data to producing train/test tensors. Every line of feature engineering lives here &mdash; nowhere else.
+      </p>
+    </div>
+
+    <!-- ── SECTION 2: The 5 Functions ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">The Five Functions</h3>
+
+    <div style="display:grid; grid-template-columns:1fr; gap:16px; max-width:760px; margin:0 auto 40px;">
+
+      <!-- Function 1 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-ingest); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--stage-ingest);">load_movielens_data</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">(data_path) &rarr; np.ndarray</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Loads raw <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">u.data</code> from disk using <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">np.loadtxt</code>. Returns a (N, 4) int64 array of [user_id, item_id, rating, timestamp].</p>
+      </div>
+
+      <!-- Function 2 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-embed); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--stage-embed);">build_id_mappings</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">(raw) &rarr; (user2idx, item2idx)</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Maps raw user/item IDs (sparse, arbitrary numbers) to contiguous indices starting at 0. These indices become the lookup keys for the embedding tables.</p>
+      </div>
+
+      <!-- Function 3 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--curtain-red-light); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--curtain-red-light);">compute_user_stats</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">(train_raw) &rarr; (user_ratings, max_count)</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Computes per-user rating lists and the maximum rating count &mdash; <strong style="color:var(--curtain-red-light);">from training data only</strong>. This is the critical function for preventing data leakage. Test features use these training-derived statistics.</p>
+      </div>
+
+      <!-- Function 4 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--spotlight-violet); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--spotlight-violet);">make_features</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">(data, user2idx, item2idx, user_ratings_dict, max_count) &rarr; (cont, cat, targets)</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Builds three arrays: continuous features (normalised mean rating &amp; interaction count), categorical indices (user &amp; item IDs for embedding lookup), and normalised targets (rating / 5.0). Unseen users default to a mean of 3/5.</p>
+      </div>
+
+      <!-- Function 5 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--projector-gold); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--projector-gold);">prepare_splits</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">(raw) &rarr; 9-tuple</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">The orchestrator. Sorts by timestamp, performs an 80/20 split, builds ID mappings from <em>all</em> data, computes stats from <em>training</em> data only, then calls <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">make_features</code> for both splits. Returns everything the training script needs.</p>
+      </div>
+
+    </div>
+
+    <!-- ── SECTION 3: Key Design Decision ── -->
+    <div style="max-width:700px; margin:0 auto 28px; background:rgba(196,35,59,0.08); border:2px solid rgba(196,35,59,0.25); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--curtain-red-light); margin-bottom:10px;">&#9888;&#65039; Key Design Decision: No Data Leakage</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">compute_user_stats</code> runs on <strong style="color:var(--curtain-red-light);">TRAINING data only</strong>. Test features use training statistics &mdash; this prevents data leakage. If test stats leaked into training features, the model would appear better than it actually is, and real-world performance would be worse.
+      </p>
+    </div>
+
+    <!-- ── SECTION 4: Train/Serve Skew Prevention ── -->
+    <div style="max-width:700px; margin:0 auto 36px; background:rgba(6,201,161,0.06); border:2px solid rgba(6,201,161,0.2); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--stage-embed); margin-bottom:10px;">&#128161; One Source of Truth</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        Both <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">train_movielens.py</code> and <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">api/app.py</code> import from this module &mdash; same transforms, one source of truth. If you change how features are built, both training and serving update together. No copy-paste drift. No silent bugs where training normalises one way and serving normalises another.
+      </p>
+    </div>
+
+    <!-- ── SECTION 5: Pipeline Flow ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">The Pipeline Flow</h3>
+    <div style="max-width:700px; margin:0 auto 36px; display:flex; flex-direction:column; gap:4px; align-items:center;">
+
+      <div style="background:var(--bg-seat); border:1px solid var(--stage-ingest); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:70%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--stage-ingest); font-weight:600;">load_movielens_data</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">u.data &rarr; (N, 4) array</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--projector-gold); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:70%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--projector-gold); font-weight:600;">prepare_splits</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">sort by timestamp &rarr; 80/20 split</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="display:flex; gap:16px; width:80%; justify-content:center;">
+        <div style="background:var(--bg-seat); border:1px solid var(--stage-embed); border-radius:var(--radius-sm); padding:12px 16px; text-align:center; flex:1;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--stage-embed); font-weight:600;">build_id_mappings</span>
+          <span style="font-size:0.75rem; color:var(--text-muted); display:block;">all data</span>
+        </div>
+        <div style="background:var(--bg-seat); border:1px solid var(--curtain-red-light); border-radius:var(--radius-sm); padding:12px 16px; text-align:center; flex:1;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--curtain-red-light); font-weight:600;">compute_user_stats</span>
+          <span style="font-size:0.75rem; color:var(--text-muted); display:block;">train only</span>
+        </div>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="display:flex; gap:16px; width:80%; justify-content:center;">
+        <div style="background:var(--bg-seat); border:1px solid var(--spotlight-violet); border-radius:var(--radius-sm); padding:12px 16px; text-align:center; flex:1;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--spotlight-violet); font-weight:600;">make_features</span>
+          <span style="font-size:0.75rem; color:var(--text-muted); display:block;">train split</span>
+        </div>
+        <div style="background:var(--bg-seat); border:1px solid var(--spotlight-violet); border-radius:var(--radius-sm); padding:12px 16px; text-align:center; flex:1;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--spotlight-violet); font-weight:600;">make_features</span>
+          <span style="font-size:0.75rem; color:var(--text-muted); display:block;">test split</span>
+        </div>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:2px solid var(--stage-serve); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:70%;">
+        <span style="font-size:0.85rem; color:var(--stage-serve); font-weight:700;">Ready for Training</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">cont + cat + targets for both splits</span>
+      </div>
+
+    </div>
+
+    <!-- ── SECTION 6: Sesame Street Box ── -->
+    <div class="ss-box" style="max-width:660px; margin:36px auto 0;">
+      <div style="font-weight:700; font-size:1rem; color:var(--reel-amber); margin-bottom:10px;">&#127775; Cookie Monster&rsquo;s Prep Kitchen</div>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75;">
+        Before the Talent Show can start, Cookie Monster runs the Prep Kitchen. Raw ingredients arrive &mdash; messy bags of flour, sugar, eggs, all labeled with weird codes.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        First, Cookie Monster <strong style="color:var(--reel-amber);">LOADS</strong> all the bags onto the counter. Then he gives every ingredient a <strong style="color:var(--reel-amber);">CLEAN NUMBER</strong> &mdash; Flour is 0, Sugar is 1, Eggs are 2. No more confusing codes.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        Then comes the important rule: Cookie Monster tastes <strong style="color:var(--reel-amber);">ONLY</strong> the practice batch to figure out the recipe. He never peeks at the contest batch! If he tasted the contest cookies before judging them, that would be <strong style="color:var(--curtain-red-light);">CHEATING</strong>.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        And the best part? Cookie Monster wrote his recipe on <strong style="color:var(--reel-amber);">ONE card</strong>. Everyone who needs to bake &mdash; whether it&rsquo;s training day or show day &mdash; uses the same card. No one copies it by hand. No one makes their own version. One recipe, everywhere.
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<!-- DETAIL PANEL + BACKDROP -->
+<div class="backdrop" id="backdrop" onclick="closePanel()"></div>
+<div class="detail-panel" id="detailPanel">
+  <div class="panel-header">
+    <div class="panel-icon" id="panelIcon"></div>
+    <div class="panel-title-wrap">
+      <div class="panel-step" id="panelStep"></div>
+      <div class="panel-title" id="panelTitle"></div>
+    </div>
+    <button class="panel-close" onclick="closePanel()">&times;</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+</div>
+
+<script>
+const NODES = {
+  // STARTUP
+  "s-env": {
+    icon: "\u{1F511}", step: "Phase 1", title: "Environment",
+    file: "api/app.py (lines 1-40)",
+    description: "First thing that runs. load_dotenv() reads the .env file to get TMDB_API_KEY and TMDB_BEARER_TOKEN. Sets up Python logging (INFO level). Defines APP_VERSION = '1.0.0'.\n\nIf TMDB credentials are missing, logs a warning but doesn't crash -- the app will start, but TMDB enrichment will fail at request time.",
+    code: "load_dotenv()\nTMDB_API_KEY = os.getenv('TMDB_API_KEY')\nTMDB_BEARER_TOKEN = os.getenv('TMDB_BEARER_TOKEN')\nAPP_VERSION = '1.0.0'",
+    teaches: "Secrets live in .env, never in code. The app warns but doesn't crash if they're missing -- fail at request time, not boot time.",
+    sesame: "<b>Elmo's Secret Diary</b>\n\nElmo has a diary with all his secret stuff in it:\n\u2022 His best friend's phone number\n\u2022 The password to the cookie jar\n\u2022 Where he hid his birthday presents\n\nElmo keeps the diary in a <b>locked drawer</b> under his bed.\n\nWhen Elmo wants to call his friend, he opens the drawer, reads the number, and makes the call.\n\nBut he NEVER writes the number on the fridge where everyone can see it.\n\nOne day, Elmo forgets to put the diary back. He goes to school without it.\n\nDoes Elmo's house fall down? No!\nDoes Elmo stop existing? No!\nHe just can't call his friend until he gets home.\n\n\ud83d\udc49 That's what .env does. Your secrets live in a locked drawer. The app can start without them -- it just can't do certain things (like call TMDB) until the secrets are available."
+  },
+  "s-config": {
+    icon: "\u2699", step: "Phase 2", title: "Config Validation",
+    file: "api/app.py (lines 50-94) + configs/config.yaml",
+    description: "Loads configs/config.yaml and validates every required key exists:\n\n- model.num_features (2)\n- model.embedding_sizes ([943, 1682])\n- model.mlp_layers ([128, 64, 32])\n- model.learning_rate (0.001)\n- model.epochs (5)\n- model.batch_size (32)\n\nIf ANY key is missing, the app calls SystemExit(1) -- hard crash. No recovery. This is intentional: a misconfigured model is worse than no model.",
+    code: "config = load_and_validate_config(CONFIG_PATH)\nmodel_cfg = config['model']\n# Exits with SystemExit(1) if invalid",
+    teaches: "Fail fast on bad config. A model loaded with wrong hyperparameters gives wrong predictions silently. Crashing is the safe option.",
+    sesame: "<b>Big Bird's Recipe Check</b>\n\nBig Bird is baking a cake for Snuffy's birthday.\n\nBefore he starts, he reads the recipe:\n\u2022 2 cups flour \u2705\n\u2022 3 eggs \u2705\n\u2022 1 cup sugar \u2705\n\u2022 A pinch of magic sparkles \u2705\n\nBig Bird checks the pantry. Everything is there!\n\nBut one day, Cookie Monster ate all the sugar.\n\nBig Bird opens the pantry and says:\n\"WAIT. There's no sugar. I can't make the cake.\"\n\nDoes he make the cake anyway with salt? NO!\nDoes he pretend the cake will be fine? NO!\nHe stops right there and says:\n\"We need sugar first. No sugar, no cake.\"\n\n\ud83d\udc49 That's config validation. Before the app builds anything, it checks: do I have everything I need? If the recipe is wrong or incomplete, it stops immediately. A cake without sugar looks like a cake but tastes terrible. A model with wrong config looks like it works but gives wrong answers."
+  },
+  "s-schema": {
+    icon: "\u{1F4DC}", step: "Phase 3", title: "Schema Definitions",
+    file: "api/app.py (lines 96-134)",
+    description: "5 Pydantic models that define the contract:\n\n- PredictionRequest: continuous_features (list[float]), categorical_features (list[int])\n- RecommendationResponse: title, genre, rating, score, poster_url, director, release_year, summary\n- ErrorResponse: success (bool), error, detail\n- HealthResponse: status, model_loaded, version\n- ModelInfoResponse: architecture, num_parameters, device, etc.",
+    code: "class PredictionRequest(BaseModel):\n    continuous_features: list[float]\n    categorical_features: list[int]",
+    teaches: "Pydantic schemas are the API contract. FastAPI auto-validates requests against them -- malformed input never reaches your model.",
+    sesame: "<b>Grover's Drive-Through Menu</b>\n\nGrover opens a restaurant! He makes a menu board:\n\n\ud83c\udf54 Burger -- comes with bun, patty, lettuce\n\ud83c\udf5f Fries -- comes in a red box\n\ud83e\udd64 Milkshake -- comes in a cup with a lid\n\nA customer drives up and says:\n\"I'd like a burger but put it in a milkshake cup and add fries inside.\"\n\nGrover says:\n\"That's... that's not on the menu. A burger comes with bun, patty, lettuce. That's what a burger IS.\"\n\nThe customer says: \"But I want it my way!\"\n\nGrover says: \"Grover understands. But Grover's kitchen only makes things on the menu. If you ask for something that doesn't match, Grover has to say no.\"\n\n\ud83d\udc49 Schemas are the menu. They tell everyone exactly what a request looks like and what a response looks like. If someone sends something that doesn't match, the kitchen (your model) never even sees it."
+  },
+  "s-model": {
+    icon: "\u{1F9E0}", step: "Phase 4", title: "Model Instantiation",
+    file: "models/dlrm.py (lines 21-49)",
+    description: "Builds the DLRM neural network architecture:\n\n1. continuous_layer: Linear(2 \u2192 128) -- transforms 2 continuous features\n2. embeddings[0]: Embedding(943, 128) -- 943 users, each a 128-d vector\n3. embeddings[1]: Embedding(1682, 128) -- 1682 items, each a 128-d vector\n4. MLP: Linear(384\u219264) \u2192 ReLU \u2192 Linear(64\u219232) \u2192 ReLU\n5. output_layer: Linear(32\u21921) + Sigmoid\n\nTotal: 363,137 trainable parameters. At this point, weights are random -- the model hasn't been loaded yet.",
+    code: "model = DLRMModel(\n    num_features=2,\n    embedding_sizes=[943, 1682],\n    mlp_layers=[128, 64, 32]\n)",
+    teaches: "The model architecture is just the skeleton. Parameters are random until you load trained weights. Architecture must match the checkpoint exactly.",
+    sesame: "<b>Elmo Builds a Robot Body</b>\n\nElmo is building a robot friend! He starts with the body:\n\n\ud83e\uddb4 Two legs for walking\n\ud83e\uddb5 Two arms for hugging\n\ud83e\udde0 A big head for thinking\n\ud83d\udc41\ufe0f Two eyes for seeing\n\nElmo connects all the pieces together. The robot looks great!\n\nBut when Elmo turns it on... the robot just stands there.\n\nElmo: \"Why won't you move?\"\nRobot: \"...\"\nElmo: \"Oh! You don't know anything yet! You're just a body!\"\n\nThe robot has legs but doesn't know how to walk.\nIt has eyes but doesn't know what anything looks like.\nIt has a brain but it's completely empty.\n\nElmo: \"We need to teach you things first!\"\n\n\ud83d\udc49 That's model instantiation. You build the shape -- the layers, the connections, the structure. But until you load the trained weights, it's just an empty body. It can process numbers, but the numbers mean nothing."
+  },
+  "s-weights": {
+    icon: "\u{1F4BE}", step: "Phase 5", title: "Weight Loading",
+    file: "api/app.py (lines 136-168)",
+    description: "Loads trained_model_movielens.pth (1.4 MB) containing 363,137 learned parameters:\n\n- 943 user embeddings (128-d each)\n- 1682 item embeddings (128-d each)\n- MLP weights and biases\n\nTrained on MovieLens 100K: 100,000 ratings from 943 users across 1,682 movies.\n\nmodel.eval() disables dropout/batch norm for deterministic inference. model_loaded = True signals the health endpoint.",
+    code: "state_dict = torch.load(MODEL_PATH, map_location='cpu')\nmodel.load_state_dict(state_dict)\nmodel.eval()\nmodel_loaded = True",
+    teaches: "map_location='cpu' ensures the model loads on any machine, even without GPU. eval() mode is critical -- without it, dropout would randomly zero out predictions.",
+    sesame: "<b>Elmo's Robot Goes to School</b>\n\nRemember Elmo's empty robot? Now Elmo sends it to school!\n\nThe robot watches 100,000 movies with 943 different people.\nIt learns:\n\u2022 \"People who liked Toy Story also liked Finding Nemo!\"\n\u2022 \"User 42 loves comedies but hates horror.\"\n\u2022 \"Movie 567 is popular with everyone.\"\n\nAfter school, the robot writes everything it learned in a notebook.\nThe notebook is 1.4 megabytes. That's 363,137 little facts.\n\nNow Elmo takes the notebook and puts it IN the robot's brain.\n\nElmo: \"Can you recommend movies now?\"\nRobot: \"User 42 would love Shrek! Confidence: 87%!\"\nElmo: \"IT WORKS! \ud83c\udf89\"\n\nThen Elmo says: \"Okay robot, stop learning. Just answer questions now.\"\n\n\ud83d\udc49 Loading weights = putting the school notebook into the robot's brain. eval() mode = telling it to stop learning and just answer. Without the notebook, smart body, no knowledge. With it, instant movie expert."
+  },
+  "s-app": {
+    icon: "\u{1F680}", step: "Phase 6", title: "FastAPI App",
+    file: "api/app.py (line 172)",
+    description: "Creates the FastAPI application instance. This is the object that uvicorn serves.\n\nTitle appears in the auto-generated OpenAPI docs at /docs. Version is used in health check responses.",
+    code: "app = FastAPI(\n    title='CinemaScopeAI Recommender',\n    version=APP_VERSION\n)",
+    teaches: "FastAPI generates OpenAPI docs automatically from your route decorators and Pydantic schemas. Free Swagger UI at /docs.",
+    sesame: "<b>Cookie Monster Opens a Shop</b>\n\nCookie Monster finally opens his dream shop: Cookie Monster's Cookie Corner! \ud83c\udf6a\n\nBut before any customers can come in, he needs:\n\u2022 A building (that's the app)\n\u2022 A name on the door (that's the title)\n\u2022 A sign that says OPEN (that's the server starting)\n\nCookie Monster puts up the sign:\n\"COOKIE MONSTER'S COOKIE CORNER\"\n\"Now serving! Version 1.0!\"\n\nThe building is empty right now -- no cookies on display, no cash register.\nBut the shop EXISTS.\n\nNext step: fill it with shelves, cookies, and a little bell that dings when someone walks in.\n\n\ud83d\udc49 FastAPI() creates the empty shop. It has a name and a version but no endpoints yet. The routes and middleware come next -- they're the shelves, cookies, and the door bell."
+  },
+  "s-middleware": {
+    icon: "\u{1F6E1}", step: "Phase 7", title: "Middleware & Routes",
+    file: "api/app.py (lines 175-391)",
+    description: "Wires up the infrastructure:\n\n1. HTTP logging middleware -- logs method, path, status, duration for every request\n2. HTTPException handler -- returns structured JSON errors\n3. Catch-all exception handler -- returns 500 with no leaked internals\n\n6 routes registered:\n- GET / (root health)\n- GET /health (detailed health)\n- GET /api/v1/models (model architecture info)\n- POST /api/v1/predict (main prediction)\n- GET /api/v1/recommend/{user_id} (per-user top-K recommendations)\n- POST /predict/ (legacy redirect)",
+    code: "@app.middleware('http')\nasync def log_requests(request, call_next):\n    start = time.perf_counter()\n    response = await call_next(request)\n    duration_ms = (time.perf_counter() - start) * 1000\n    logger.info('method=%s path=%s status=%s duration=%.2fms', ...)",
+    teaches: "Middleware wraps every request. The logging middleware measures latency for every endpoint -- you see sub-0.05ms model inference because of this.",
+    sesame: "<b>Cookie Monster's Shop Gets a Doorbell and a Bouncer</b>\n\nCookie Monster's shop is built. Now he adds:\n\n\ud83d\udd14 A doorbell that goes DING every time someone walks in.\nThe doorbell writes down:\n\u2022 Who came in (what kind of request)\n\u2022 What they wanted (which page)\n\u2022 How long they stayed (duration)\n\u2022 Did they leave happy? (status code)\n\n\ud83d\udea8 A bouncer at the door who handles problems:\nIf someone asks for cookies that don't exist: \"Sorry, we don't have that. Here's a polite note explaining why.\"\nIf the oven explodes: \"Something went wrong in the kitchen. We're very sorry. Here's a polite note -- but we're NOT telling you it was the oven.\"\n\n\ud83d\udecf\ufe0f And 5 service counters:\n\u2022 Counter 1: \"Hello! We're open!\" (/)\n\u2022 Counter 2: \"Here's our health status\" (/health)\n\u2022 Counter 3: \"Here's how our robot works\" (/api/v1/models)\n\u2022 Counter 4: \"Here are your movie picks!\" (/api/v1/predict)\n\u2022 Counter 5: \"YOUR personal picks from the whole catalogue!\" (/api/v1/recommend/{user_id})\n\u2022 Counter 6: \"Same as counter 4 but the old door\" (/predict/)\n\n\ud83d\udc49 Middleware is the doorbell and bouncer. Routes are the service counters. Every customer gets logged, every problem gets a polite response, and there's a counter for everything."
+  },
+
+  // PREDICTION
+  "p-validate": {
+    icon: "\u{1F510}", step: "Step 1", title: "Validation Gate",
+    file: "api/app.py (lines 323-357)",
+    description: "Four checks before the model sees anything:\n\n1. Model loaded? (503 if not)\n2. Exactly 2 categorical features? (400 if not)\n3. user_id in [0, 942] and item_id in [0, 1681]? (400 if out of range)\n4. Exactly 2 continuous features? (400 if not)\n\nAny failure returns a structured error response. The model never sees invalid input.",
+    code: "if not model_loaded:\n    raise HTTPException(503, 'Model is not loaded.')\nif len(categorical_features) != 2:\n    raise HTTPException(400, f'Expected 2, got {len(...)}')\nif val < 0 or val >= max_val:\n    raise HTTPException(400, f'Feature {i} out of range')",
+    teaches: "Validate at the boundary. The model will happily process garbage input and return a confident wrong answer. Validation catches this before it happens.",
+    sesame: "<b>Big Bird's Ride Check</b>\n\nBig Bird runs a roller coaster! \ud83c\udfa2\n\nBefore anyone gets on, he checks:\n\n\ud83d\udfe2 \"Is the roller coaster working?\" (Is the model loaded?)\nIf not: \"Sorry! Ride is closed! Come back later!\"\n\n\ud83d\udfe2 \"Are you the right height?\" (Are there exactly 2 categorical features?)\nIf not: \"You need to be THIS tall to ride! You gave me 3 numbers but I need exactly 2.\"\n\n\ud83d\udfe2 \"Is your ticket valid?\" (Is user_id between 0-942?)\nIf not: \"This ticket says seat 5000 but we only have 943 seats! That's not real!\"\n\n\ud83d\udfe2 \"Do you have your safety gear?\" (Are there exactly 2 continuous features?)\nIf not: \"You need a helmet AND a seatbelt! You only brought one!\"\n\nBig Bird checks ALL of this BEFORE the ride starts. Nobody gets on with a fake ticket.\n\n\ud83d\udc49 Validation is the height check at the roller coaster. The model will give an answer to ANY numbers you feed it -- even nonsense. Validation is the only thing stopping garbage from going in."
+  },
+  "p-tensor": {
+    icon: "\u{1F9EE}", step: "Step 2", title: "Tensor Forge",
+    file: "api/app.py (lines 359-364)",
+    description: "Converts JSON arrays to PyTorch tensors:\n\n- continuous_features: list[float] \u2192 torch.tensor (1, 2) float32\n- categorical_features: list[int] \u2192 torch.tensor (1, 2) int64\n\nThe batch dimension (1) is added because the model expects batched input even for single predictions. dtype must match what the model was trained with.",
+    code: "continuous_tensor = torch.tensor(\n    [request.continuous_features], dtype=torch.float32\n)  # shape: (1, 2)\ncategorical_tensor = torch.tensor(\n    [request.categorical_features], dtype=torch.int64\n)  # shape: (1, 2)",
+    teaches: "The bridge between web and ML. JSON \u2192 tensor is where the API world meets the model world. Get the dtype wrong and you get silent garbage.",
+    sesame: "<b>Elmo's Translator Friend</b>\n\nElmo speaks English. His robot friend speaks... numbers.\n\nA customer walks in and says:\n\"I'm user number 42 and I want to know about movie 567. My average rating is 3.8 and I've watched 45 movies.\"\n\nElmo writes this down on a piece of paper. But the robot can't read paper!\n\nSo Elmo calls his translator friend, Tensor Telly:\n\nTelly takes the paper and converts it:\n\ud83d\udcdd Paper: [3.8, 45] \u2192 \ud83e\udde0 Robot language: [[3.8, 45.0]] (float32)\n\ud83d\udcdd Paper: [42, 567] \u2192 \ud83e\udde0 Robot language: [[42, 567]] (int64)\n\nTelly: \"The brackets matter! The robot expects a BATCH of things, even if it's just one thing. So we wrap it in extra brackets.\"\n\nElmo: \"What if we use the wrong type? Like, what if we say 42.0 instead of 42?\"\n\nTelly: \"The robot gets confused. It looks for user 42.0 in its brain and finds... nothing. Silent failure. Wrong answer. No warning.\"\n\n\ud83d\udc49 Tensors are the robot's language. Getting the type or shape wrong doesn't crash -- it silently gives wrong answers. That's worse than crashing."
+  },
+  "p-embed": {
+    icon: "\u{1F50D}", step: "Step 3", title: "Embedding Lookup",
+    file: "models/dlrm.py (lines 77-80)",
+    description: "Each categorical feature (user_id, item_id) is an index into a learned lookup table:\n\n- User 42 \u2192 embeddings[0][42] \u2192 128-dimensional vector capturing user 42's preferences\n- Item 567 \u2192 embeddings[1][567] \u2192 128-dimensional vector capturing item 567's properties\n\nThese vectors were learned during training by backpropagation. Similar users have similar vectors. Similar items have similar vectors.\n\n943 user vectors + 1682 item vectors = 336,000 parameters (93% of the model).",
+    code: "cat_embeds = [\n    self.embeddings[0](user_id),  # (1, 128)\n    self.embeddings[1](item_id),  # (1, 128)\n]",
+    teaches: "Embeddings are the heart of recommendation. They compress 'who you are' and 'what this is' into dense vectors that the MLP can reason about.",
+    sesame: "<b>Grover's Friendship Bracelets</b>\n\nGrover has 943 friends. That's a LOT of friends.\n\nHe can't remember everything about each friend. So he makes friendship bracelets!\n\nEach bracelet has 128 coloured beads. The pattern of colours is unique to that friend:\n\n\ud83d\udfe3\ud83d\udfe1\ud83d\udd35\ud83d\udfe2\ud83d\udfe0... (128 beads) = \"This is friend #42. She likes comedies, hates horror, watches on weekends.\"\n\ud83d\udfe0\ud83d\udfe3\ud83d\udfe2\ud83d\udd35\ud83d\udfe1... (128 beads) = \"This is friend #99. He loves sci-fi, watches everything, rates harshly.\"\n\nGrover ALSO makes bracelets for 1,682 movies:\n\ud83d\udd35\ud83d\udfe1\ud83d\udfe0\ud83d\udfe3\ud83d\udfe2... = \"This is Toy Story. Fun, animated, everyone likes it.\"\n\nThe cool part: Grover didn't DESIGN the bead patterns. He let the robot figure them out during training! The robot noticed:\n\"Friends who like the same movies get similar bead patterns.\"\n\"Movies that are liked by the same people get similar bead patterns.\"\n\nSo when Grover holds up Friend #42's bracelet next to Toy Story's bracelet... the beads are really similar! That means she'll probably like it.\n\n\ud83d\udc49 Embeddings turn an ID number (meaningless) into a rich pattern of 128 values (meaningful). The pattern is learned from data, not designed by hand."
+  },
+  "p-fuse": {
+    icon: "\u{1F517}", step: "Step 4", title: "Feature Fusion",
+    file: "models/dlrm.py (line 85)",
+    description: "Concatenates three vectors into one:\n\n- Continuous layer output: (1, 128) -- transformed mean_rating and normalised_count\n- User embedding: (1, 128) -- who is this user\n- Item embedding: (1, 128) -- what is this item\n\nResult: (1, 384) -- everything the model knows about this user-item pair in one vector.\n\nThis is the DLRM's key insight: treat continuous and categorical features equally by projecting them into the same dimensional space before combining.",
+    code: "x = torch.cat([x] + cat_embeds, dim=1)\n# x.shape: (1, 384)",
+    teaches: "Feature fusion is where different data types (numbers and categories) become compatible. Without this, the model couldn't learn cross-feature interactions.",
+    sesame: "<b>Cookie Monster's Mega Sandwich</b>\n\nCookie Monster is making the ULTIMATE sandwich.\n\nHe has three ingredients:\n\ud83e\uddc0 Cheese (that's the continuous features -- things like 'how much do you eat?' and 'how often?')\n\ud83e\udd6c Lettuce (that's the user bracelet -- 128 beads of who you are)\n\ud83c\udf45 Tomato (that's the movie bracelet -- 128 beads of what this movie is)\n\nCookie Monster stacks them ALL together:\nCheese (128) + Lettuce (128) + Tomato (128) = ONE MEGA SANDWICH (384)\n\n\"Now me have EVERYTHING in one bite!\" says Cookie Monster.\n\"Me know how much you eat, who you are, and what movie this is. All in one delicious sandwich!\"\n\nBefore the sandwich? Three separate things on three separate plates.\nAfter the sandwich? One thing with all the information inside.\n\n\ud83d\udc49 Concatenation puts all the information in one place. The robot can't look at three separate things at once -- it needs one vector. The mega sandwich IS that vector."
+  },
+  "p-mlp": {
+    icon: "\u{1F9E0}", step: "Step 5", title: "Neural Pathway",
+    file: "models/dlrm.py (lines 93-94)",
+    description: "The 384-d fused vector passes through:\n\n1. Linear(384 \u2192 64) + ReLU -- compress to 64 dimensions\n2. Linear(64 \u2192 32) + ReLU -- compress to 32 dimensions\n3. Linear(32 \u2192 1) -- single output neuron\n4. Sigmoid -- squash to [0, 1]\n\nOutput: a single float between 0 and 1. Higher = stronger prediction that this user will like this item.\n\nInference time: 0.046ms (46 microseconds).",
+    code: "x = self.mlp(x)           # (1, 384) \u2192 (1, 32)\nreturn self.sigmoid(\n    self.output_layer(x)  # (1, 32) \u2192 (1, 1) \u2192 [0, 1]\n)",
+    teaches: "The MLP learns non-linear interactions between features. Two ReLU layers can approximate surprisingly complex preference functions.",
+    sesame: "<b>The Count's Shrinking Machine</b>\n\nThe Count has a magical shrinking machine! \ud83e\uddb7\n\nHe feeds in Cookie Monster's mega sandwich (384 ingredients) and says:\n\n\"ONE! One shrink!\" \ud83c\udf29\ufe0f\nThe sandwich goes from 384 ingredients down to 64.\nA lot of the boring stuff disappears. Only the important flavours remain.\n\n\"TWO! Two shrinks!\" \ud83c\udf29\ufe0f\nFrom 64 down to 32.\nNow it's super concentrated. Pure essence of preference.\n\n\"THREE! Three shrinks!\" \ud83c\udf29\ufe0f\nFrom 32 down to... ONE single number.\n\nThe Count holds up the tiny number: \"0.87!\"\n\n\"That means... this user will PROBABLY like this movie!\" says The Count.\n\"If it was 0.12, they probably wouldn't.\"\n\nBut wait -- between each shrink, there's a special filter called ReLU.\nIt's like a taste tester who says: \"If this flavour is negative, throw it out. If it's positive, keep it.\"\n\nAnd at the very end, Sigmoid squishes the number between 0 and 1.\nBecause you can't like a movie -3 amount or 47 amount. It's 0 to 1. That's it.\n\n\ud83d\udc49 The MLP compresses 384 features down to one prediction in three steps. Each step throws out noise and keeps signal. ReLU removes negatives. Sigmoid keeps the answer between 0 and 1."
+  },
+  "p-tmdb": {
+    icon: "\u{1F3AC}", step: "Step 6", title: "TMDB Enrichment",
+    file: "api/app.py (lines 271-314)",
+    description: "Fetches real movie data from The Movie Database API:\n\n1. Constructs request with Bearer token auth\n2. Calls GET https://api.themoviedb.org/3/movie/popular (async, 10s timeout)\n3. Parses ~20 popular movies\n4. Extracts: title, score (vote_average/10), poster_url, release_year, summary\n\nThis is the 'real world' data that turns a bare prediction score into a rich recommendation with posters and descriptions.\n\nFails gracefully: returns HTTP 502 if TMDB is down.",
+    code: "async with httpx.AsyncClient(timeout=10.0) as client:\n    response = await client.get(url, headers=headers)\nmovies = response.json()['results']",
+    teaches: "The model predicts a score. TMDB provides the content. Separating prediction from presentation lets you swap data sources without retraining.",
+    sesame: "<b>Big Bird Goes Shopping</b>\n\nThe robot says: \"User 42 would like something that scores 0.87.\"\n\nBut 0.87 is just a number! It's not a movie title, not a poster, not a description.\n\nSo Big Bird says: \"Leave this to me!\"\n\nBig Bird runs to the Movie Store (TMDB) and asks:\n\"What popular movies do you have today?\"\n\nThe Movie Store hands him a catalogue with ~20 movies:\n\ud83c\udf9e\ufe0f Title, poster, year, description, score...\n\nBig Bird brings the whole catalogue back.\n\nBig Bird: \"Here! Now we have REAL movies with REAL pictures!\"\nRobot: \"Great! Now I can match my number to actual movies!\"\n\nBut what if the Movie Store is closed? (TMDB is down?)\nBig Bird comes back empty-handed and says:\n\"Sorry! The store is closed! We can't show you movies right now.\"\n(That's the 502 error.)\n\n\ud83d\udc49 The robot knows WHAT you'd like (a score). TMDB knows WHAT EXISTS (real movies). Combining them is what turns a number into a recommendation."
+  },
+  "p-rank": {
+    icon: "\u{1F3C6}", step: "Step 7", title: "Ranking & Delivery",
+    file: "api/app.py (lines 378-384)",
+    description: "Sorts TMDB movies by how close their score is to the DLRM prediction:\n\nsorted(movies, key=lambda x: abs(x['score'] - prediction_score), reverse=True)[:5]\n\nReturns the top 5 as RecommendationResponse objects with full metadata:\n- title, genre, rating, score\n- poster_url (TMDB CDN image)\n- director, release_year, summary\n\nHTTP 200 with JSON array of 5 recommendations.",
+    code: "recommended = sorted(\n    movie_database,\n    key=lambda x: abs(x['score'] - prediction_score),\n    reverse=True\n)[:5]\nreturn recommended",
+    teaches: "The final step transforms an abstract score into something a user can see and click. The ranking algorithm is simple -- proximity to the prediction score.",
+    sesame: "<b>Elmo Picks the Winners (Legacy /predict)</b>\n\nElmo has:\n\u2022 The robot's number: 0.87\n\u2022 Big Bird's catalogue of 20 real movies (each with their own score)\n\nNow Elmo plays a game! He lines up all the movies and measures how FAR each one is from 0.87:\n\n\ud83c\udf9e\ufe0f Movie A (score 0.85): distance = 0.02 \ud83c\udfaf SO CLOSE!\n\ud83c\udf9e\ufe0f Movie B (score 0.60): distance = 0.27 \ud83d\ude10 far away\n\ud83c\udf9e\ufe0f Movie C (score 0.90): distance = 0.03 \ud83c\udfaf pretty close!\n\ud83c\udf9e\ufe0f Movie D (score 0.30): distance = 0.57 \ud83d\ude34 way too far\n\nElmo sorts them by distance and picks the TOP 5 closest matches.\n\nElmo: \"Here are your 5 movies! They're the ones that match what the robot thinks you'd like!\"\n\nAnd each movie comes with the full package:\n\ud83c\udfa8 A poster to look at\n\ud83d\udcc5 The year it came out\n\ud83d\udcdd A description to read\n\u2b50 A score to consider\n\nAll wrapped up in a beautiful response.\n\n\ud83d\udc49 Ranking is just measuring distance. The 5 movies closest to the robot's prediction are the recommendations. Simple, fast, and effective."
+  },
+  "p-recommend": {
+    icon: "\u{1F31F}", step: "Step 8", title: "Per-User Recommendations",
+    file: "api/app.py (/recommend/{user_id} endpoint)",
+    description: "REAL personalization endpoint.\n\nGiven a user_id, this endpoint:\n\n1. Creates a batch of 1,682 (user_id, item_id) pairs -- one for every item in the catalogue\n2. Runs ONE forward pass through the DLRM, producing 1,682 predicted scores\n3. Sorts all items by predicted score (highest first)\n4. Returns the top-K items (default 10) with movie metadata (title, genres, year)\n\nNo TMDB popularity. No distance matching. The model itself ranks the entire catalogue for this specific user.\n\nEndpoint: GET /api/v1/recommend/{user_id}?top_k=10",
+    code: "user_tensor = torch.full((1682, 1), user_id, dtype=torch.int64)\nitem_tensor = torch.arange(1682).unsqueeze(1)\ncategorical = torch.cat([user_tensor, item_tensor], dim=1)\ncontinuous = torch.zeros((1682, 2), dtype=torch.float32)\n\nwith torch.no_grad():\n    scores = model(continuous, categorical).squeeze()\n\ntop_indices = scores.argsort(descending=True)[:top_k]",
+    teaches: "This is true collaborative filtering at inference time. Instead of predicting one pair and matching to external popularity, the model scores every item for one user. The ranking comes from the model, not from TMDB.",
+    sesame: "<b>The Count Scores the WHOLE Library</b>\n\nThe old way: The robot predicts ONE number, then Big Bird fetches popular movies and Elmo picks the closest ones. It works -- but the model only looked at ONE movie.\n\nThe NEW way: The Count walks into the library with User 42's card and says:\n\n\"I will score EVERY. SINGLE. MOVIE. Ah ah ah!\"\n\n1,682 movies in the library.\nThe Count runs them ALL through the robot, one by one:\n\n\ud83c\udf9e\ufe0f Movie 1: 0.94 -- LOVE IT!\n\ud83c\udf9e\ufe0f Movie 2: 0.12 -- meh.\n\ud83c\udf9e\ufe0f Movie 3: 0.88 -- great!\n... all 1,682 ...\n\ud83c\udf9e\ufe0f Movie 1682: 0.03 -- terrible.\n\nThen The Count sorts them: highest score first.\nThe top 10 winners? Those are YOUR recommendations.\n\nNo popularity contest. No TMDB. The model decided.\n\n\ud83d\udc49 /recommend/{user_id} is real personalization. The model scores every item for one user, and the highest scores win. One forward pass, 1,682 predictions, top-K returned."
+  }
+};
+
+/* TAB SWITCHING */
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-group-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-dropdown').forEach(d => d.classList.remove('open'));
+  const btn = document.querySelector(`.tab-btn[onclick="switchTab('${name}')"]`);
+  if (btn) btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  resetAll();
+}
+
+function toggleGroup(groupId) {
+  const dropdown = document.getElementById(groupId + '-dropdown');
+  dropdown.classList.toggle('open');
+}
+
+function switchTabFromGroup(tabName, groupId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-group-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-dropdown').forEach(d => d.classList.remove('open'));
+  const groupBtn = document.querySelector(`#${groupId} .tab-group-btn`);
+  if (groupBtn) groupBtn.classList.add('active');
+  // highlight the active dropdown item
+  document.querySelectorAll(`#${groupId}-dropdown button`).forEach(b => b.classList.remove('active'));
+  const item = document.querySelector(`#${groupId}-dropdown button[onclick*="'${tabName}'"]`);
+  if (item) item.classList.add('active');
+  document.getElementById('tab-' + tabName).classList.add('active');
+  resetAll();
+}
+
+/* DETAIL PANEL */
+function openNode(id) {
+  const data = NODES[id];
+  if (!data) return;
+  document.getElementById('panelIcon').textContent = data.icon;
+  document.getElementById('panelStep').textContent = data.step;
+  document.getElementById('panelTitle').textContent = data.title;
+
+  let html = '';
+  html += `<div class="panel-section"><div class="panel-section-label">Source File</div><div class="panel-file">${data.file}</div></div>`;
+  html += `<div class="panel-section"><div class="panel-section-label">What Happens Here</div><div class="panel-text" style="white-space:pre-line;">${data.description}</div></div>`;
+  html += `<div class="panel-section"><div class="panel-section-label">The Code</div><div class="panel-code">${data.code}</div></div>`;
+  html += `<div class="panel-section"><div class="panel-section-label">What This Teaches</div><div class="panel-text">${data.teaches}</div></div>`;
+
+  if (data.sesame) {
+    html += `<div class="sesame-section">
+      <div class="sesame-header">
+        <span style="font-size:1.4rem;">\ud83c\udf6a</span>
+        <span class="sesame-badge">SESAME STREET EXPLAINS</span>
+      </div>
+      <div class="sesame-content">${data.sesame}</div>
+    </div>`;
+  }
+
+  document.getElementById('panelBody').innerHTML = html;
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('backdrop').classList.add('active');
+
+  document.querySelectorAll('.node').forEach(n => n.classList.remove('active'));
+  document.querySelector(`[data-id="${id}"]`).classList.add('active');
+}
+
+function closePanel() {
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('backdrop').classList.remove('active');
+  document.querySelectorAll('.node').forEach(n => n.classList.remove('active'));
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
+
+/* CLOSE DROPDOWNS ON OUTSIDE CLICK */
+document.addEventListener('click', e => {
+  if (!e.target.closest('.tab-group')) {
+    document.querySelectorAll('.tab-dropdown').forEach(d => d.classList.remove('open'));
+  }
+});
+
+/* PLAY SEQUENCE */
+async function playSeq(tab) {
+  resetAll();
+  const nodes = document.querySelectorAll(`[data-tab="${tab}"].node`);
+  const corridors = document.querySelectorAll(`[data-tab="${tab}"].corridor`);
+  for (let i = 0; i < nodes.length; i++) {
+    nodes[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await sleep(300);
+    nodes[i].classList.add('lit');
+    nodes[i].style.boxShadow = '0 0 20px rgba(138,79,207,0.15)';
+    if (corridors[i]) corridors[i].classList.add('lit');
+    await sleep(600);
+  }
+}
+
+function resetAll() {
+  document.querySelectorAll('.node').forEach(n => { n.classList.remove('lit','active'); n.style.boxShadow=''; });
+  document.querySelectorAll('.corridor').forEach(c => c.classList.remove('lit'));
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
