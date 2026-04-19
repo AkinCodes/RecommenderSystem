@@ -30,13 +30,10 @@ def compute_user_stats(train_raw: np.ndarray):
     for row in train_raw:
         uid = row[0]
         user_ratings.setdefault(uid, []).append(row[2])
-    max_count = max(len(v) for v in user_ratings.values()) if user_ratings else 1
+    max_count = (
+        max(len(v) for v in user_ratings.values()) if user_ratings else 1
+    )
     return user_ratings, max_count
-
-
-def normalise_rating(rating):
-    """Normalise a raw rating to [0, 1]."""
-    return rating / RATING_MAX
 
 
 def make_features(data, user2idx, item2idx, user_ratings_dict, max_count):

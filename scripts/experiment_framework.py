@@ -165,10 +165,10 @@ class ExperimentRunner:
         )
 
     def _load_data(self):
-        """Load and split MovieLens data (reuses logic from train_movielens)."""
-        from scripts.train_movielens import load_data, prepare_splits
+        """Load and split MovieLens data."""
+        from data.preprocessing import load_movielens_data, prepare_splits
 
-        raw = load_data()
+        raw = load_movielens_data(os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "ml-100k", "u.data"))
         splits = prepare_splits(raw)
         return raw, splits
 
