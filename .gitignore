@@ -22,8 +22,10 @@ lightning_logs/
 *.pth
 !trained_model_movielens.pth
 
-# Data
-data/
+# Data (ignore datasets but keep Python package files)
+data/*
+!data/__init__.py
+!data/preprocessing.py
 
 # HTML files
 *.html
