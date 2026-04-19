@@ -4,6 +4,8 @@ Used by both training (scripts/train_movielens.py) and serving (api/app.py)
 to guarantee identical feature engineering and prevent train/serve skew.
 """
 
+import os
+
 import numpy as np
 
 NUM_FEATURES = 2  # mean_rating, normalised_count
@@ -89,3 +91,24 @@ def prepare_splits(raw: np.ndarray):
     return (train_cont, train_cat, train_targets,
             test_cont, test_cat, test_targets,
             user2idx, item2idx, test_raw)
+
+
+def load_item_metadata(data_dir: str) -> dict:
+    """Load movie titles and genres from MovieLens u.item file."""
+    items = {}
+    item_path = os.path.join(data_dir, "u.item")
+    genres = [
+        "Unknown", "Action", "Adventure", "Animation", "Children",
+        "Comedy", "Crime", "Documentary", "Drama", "Fantasy",
+        "Film-Noir", "Horror", "Musical", "Mystery", "Romance",
+        "Sci-Fi", "Thriller", "War", "Western",
+    ]
+    with open(item_path, encoding="latin-1") as f:
+        for line in f:
+            parts = line.strip().split("|")
+            item_id = int(parts[0])
+            title = parts[1]
+            genre_flags = [int(g) for g in parts[5:24]]
+            item_genres = [genres[i] for i, flag in enumerate(genre_flags) if flag]
+            items[item_id] = {"title": title, "genres": item_genres}
+    return items
