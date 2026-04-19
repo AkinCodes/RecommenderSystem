@@ -1,11 +1,8 @@
 """
 Export DLRM model to ONNX for optimized inference.
 
-Demonstrates model optimization skills:
-- PyTorch -> ONNX conversion
-- Input/output shape specification
-- Dynamic batching support
-- Model validation (compare PyTorch vs ONNX outputs)
+Exports a trained DLRM model to ONNX format for optimized inference.
+Validates the exported model by comparing PyTorch and ONNX outputs.
 
 Usage:
     python scripts/export_onnx.py

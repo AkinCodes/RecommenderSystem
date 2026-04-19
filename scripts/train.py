@@ -140,18 +140,3 @@ if __name__ == "__main__":
     trainer.validate(model, get_dataloader())
     logger.info("Validation Complete!")
 
-    # Load Model from Checkpoint
-    checkpoint_path = "lightning_logs/checkpoints/dlrm-epoch=04-train_loss=0.65.ckpt"
-    model = DLRMTrainer.load_from_checkpoint(
-        checkpoint_path,
-        num_features=10,
-        embedding_sizes=[10, 10, 10, 10, 10],
-        mlp_layers=[64, 32, 16],
-    )
-
-    # Run Inference with Loaded Model
-    logger.info("Running Inference with Loaded Model...")
-    batch = next(iter(get_dataloader()))
-    continuous_features, categorical_features, labels = batch
-    output = model(continuous_features, categorical_features)
-    logger.info("Loaded Model Output Shape: %s", output.shape)
