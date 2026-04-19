@@ -442,16 +442,16 @@ The API is deployed on Render at **https://recommendersystem-l993.onrender.com**
 
 ### AWS ECS (Fargate)
 
-The repo includes an ECS task definition (`task-definition.json`) configured for Fargate with 256 CPU units and 512MB memory. The container image is pushed to ECR at `804859200836.dkr.ecr.us-east-1.amazonaws.com/cinemascope-recsys:latest`.
+The repo includes an ECS task definition (`task-definition.json`) configured for Fargate with 256 CPU units and 512MB memory. The container image is pushed to ECR at `YOUR_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/cinemascope-recsys:latest`.
 
 To deploy to ECS:
 
 ```bash
 # Build and push to ECR
 docker build -t cinemascope-recsys .
-docker tag cinemascope-recsys:latest 804859200836.dkr.ecr.us-east-1.amazonaws.com/cinemascope-recsys:latest
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 804859200836.dkr.ecr.us-east-1.amazonaws.com
-docker push 804859200836.dkr.ecr.us-east-1.amazonaws.com/cinemascope-recsys:latest
+docker tag cinemascope-recsys:latest YOUR_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/cinemascope-recsys:latest
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin YOUR_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
+docker push YOUR_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/cinemascope-recsys:latest
 
 # Register task and run
 aws ecs register-task-definition --cli-input-json file://task-definition.json

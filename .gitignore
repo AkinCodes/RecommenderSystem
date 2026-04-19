@@ -16,11 +16,16 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# PyTorch / training artifacts
+# Training artifacts
 lightning_logs/
-# Allow trained_model_movielens.pth but ignore other .pth files
+wandb/
+
+# Model weights and serialized artifacts
 *.pth
-!trained_model_movielens.pth
+*.ckpt
+*.onnx
+*.onnx.data
+*.pkl
 
 # Data (ignore datasets but keep Python package files)
 data/*
@@ -50,7 +55,3 @@ uv.lock
 
 # Learning system (personal, not project code)
 docs/learning_roadmap/
-
-# Experiment artifacts
-wandb/
-recommender_blueprint.html
