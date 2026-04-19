@@ -258,7 +258,7 @@ def main():
         ("Random", random_metrics),
         ("Most Popular", popular_metrics),
         ("User Mean", user_mean_metrics),
-        ("DLRM (yours)", dlrm_metrics),
+        ("DLRM", dlrm_metrics),
     ]
 
     header = f"| {'Model':<15} | {'NDCG@10':>8} | {'Precision@10':>13} | {'HitRate@10':>11} |"
@@ -288,7 +288,7 @@ def main():
     report_lines.append("- **Random**: Assign random scores to each candidate item.")
     report_lines.append("- **Most Popular**: Rank items by number of ratings in the training set.")
     report_lines.append("- **User Mean**: Rank items by their average rating in the training set (a proxy for item quality).")
-    report_lines.append("- **DLRM (yours)**: Deep Learning Recommendation Model with user/item embeddings and dense features.")
+    report_lines.append("- **DLRM**: Deep Learning Recommendation Model with user/item embeddings and dense features.")
     report_lines.append("")
 
     with open(REPORT_PATH, "w") as f:

@@ -193,43 +193,6 @@ def main():
     # Summary
     # -------------------------------------------------------------------
     print("\n" + "=" * 60)
-    print("SUMMARY & PRODUCTION RECOMMENDATIONS")
-    print("=" * 60)
-    print("""
-  What this script demonstrates:
-  - Comparing prediction score distributions between reference (training)
-    data and new incoming batches using statistical tests.
-
-  In production, a full drift detection system would include:
-
-  1. INPUT DRIFT (covariate shift):
-     - Monitor distributions of input features (user activity level,
-       item popularity, continuous features).
-     - Use Population Stability Index (PSI) or KS tests on each feature.
-
-  2. PREDICTION DRIFT (concept drift):
-     - Track the distribution of model output scores over time.
-     - Alert when KL divergence exceeds a threshold (e.g., > 0.1).
-
-  3. LABEL DRIFT (prior probability shift):
-     - Monitor the distribution of actual ratings/clicks over time.
-     - Compare to training label distribution.
-
-  4. PERFORMANCE DRIFT:
-     - Track online metrics (NDCG, CTR, conversion) with a sliding window.
-     - Use CUSUM or Page-Hinkley tests for change-point detection.
-
-  5. ALERTING:
-     - Set thresholds: KL > 0.1 = warning, KL > 0.5 = critical.
-     - KS p-value < 0.01 after Bonferroni correction = alert.
-     - Integrate with monitoring stack (Prometheus, Grafana, PagerDuty).
-
-  6. RESPONSE:
-     - Automatic model retraining pipeline triggered by drift alerts.
-     - A/B testing framework to validate retrained models.
-     - Fallback to simpler model (e.g., popularity baseline) if drift is severe.
-""")
-    print("=" * 60)
 
 
 if __name__ == "__main__":

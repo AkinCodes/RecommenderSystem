@@ -17,9 +17,7 @@ from pydantic import BaseModel
 
 from models.dlrm import DLRMModel
 
-# ---------------------------------------------------------------------------
 # Configuration
-# ---------------------------------------------------------------------------
 
 load_dotenv()
 
@@ -49,9 +47,7 @@ class ModelInputError(Exception):
     """Raised when prediction input is invalid."""
 
 
-# ---------------------------------------------------------------------------
 # Load and validate config from YAML
-# ---------------------------------------------------------------------------
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "configs", "config.yaml")
 
@@ -97,9 +93,7 @@ except (FileNotFoundError, ValueError) as exc:
     logger.error("Configuration error: %s", exc)
     raise SystemExit(1) from exc
 
-# ---------------------------------------------------------------------------
 # Request / response schemas
-# ---------------------------------------------------------------------------
 
 
 class PredictionRequest(BaseModel):
@@ -139,9 +133,7 @@ class ModelInfoResponse(BaseModel):
     mlp_layers: list[int]
 
 
-# ---------------------------------------------------------------------------
 # Model loading
-# ---------------------------------------------------------------------------
 
 num_continuous_features = model_cfg["num_features"]  # 2: mean_rating, normalised_count
 num_categorical_features = len(model_cfg["embedding_sizes"])  # 2: user_id, item_id
@@ -175,16 +167,12 @@ except Exception as exc:
     logger.error("Failed to load DLRM model: %s", exc, exc_info=True)
     model = None
 
-# ---------------------------------------------------------------------------
 # App
-# ---------------------------------------------------------------------------
 
 app = FastAPI(title="CinemaScopeAI Recommender", version=APP_VERSION)
 
 
-# ---------------------------------------------------------------------------
 # Middleware: request/response logging
-# ---------------------------------------------------------------------------
 
 
 @app.middleware("http")
@@ -203,9 +191,7 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-# ---------------------------------------------------------------------------
 # Structured error handling
-# ---------------------------------------------------------------------------
 
 
 @app.exception_handler(HTTPException)
@@ -235,9 +221,7 @@ async def unhandled_exception_handler(_request: Request, exc: Exception):
     )
 
 
-# ---------------------------------------------------------------------------
 # Root endpoint
-# ---------------------------------------------------------------------------
 
 
 @app.get("/")
@@ -246,9 +230,7 @@ async def root():
     return {"status": "healthy", "message": "Recommendation API is running."}
 
 
-# ---------------------------------------------------------------------------
 # Health check
-# ---------------------------------------------------------------------------
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -261,9 +243,7 @@ async def health():
     }
 
 
-# ---------------------------------------------------------------------------
 # Model info
-# ---------------------------------------------------------------------------
 
 
 @app.get("/api/v1/models", response_model=ModelInfoResponse)
@@ -285,9 +265,7 @@ async def model_info():
     }
 
 
-# ---------------------------------------------------------------------------
 # TMDB helpers
-# ---------------------------------------------------------------------------
 
 
 async def fetch_real_movies() -> list[dict]:
@@ -336,9 +314,7 @@ async def fetch_real_movies() -> list[dict]:
     ]
 
 
-# ---------------------------------------------------------------------------
 # Predict (versioned)
-# ---------------------------------------------------------------------------
 
 
 @app.post("/api/v1/predict", response_model=list[RecommendationResponse])
