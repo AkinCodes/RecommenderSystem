@@ -30,6 +30,13 @@ dev = [
     "ruff>=0.1.0",
 ]
 
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["models*", "api*", "data*"]
+
 [tool.ruff]
 line-length = 120
 target-version = "py310"
