@@ -17,11 +17,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from scripts.experiment_framework import (
     ExperimentConfig,
-    ExperimentResult,
     ExperimentRunner,
     to_report,
 )
-
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "experiments", "results")
 

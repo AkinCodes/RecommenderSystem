@@ -6,7 +6,6 @@ and performs statistical analysis (t-test, confidence interval,
 Cohen's d, power analysis).
 """
 
-import json
 import os
 import sys
 import time
@@ -285,6 +284,7 @@ class ExperimentRunner:
         """Run a standard A/B experiment: train both models, evaluate, compare."""
         import torch
         from torch.utils.data import DataLoader
+
         from scripts.train_movielens import MovieLensDataset
 
         np.random.seed(self.config.random_seed)
@@ -346,6 +346,7 @@ class ExperimentRunner:
         """
         import torch
         from torch.utils.data import DataLoader
+
         from scripts.train_movielens import MovieLensDataset
 
         np.random.seed(self.config.random_seed)
@@ -442,7 +443,7 @@ def to_report(result: ExperimentResult) -> str:
         "",
         "## Statistical Analysis",
         "",
-        f"| Statistic | Value |",
+        "| Statistic | Value |",
         "|-----------|-------|",
         f"| t-statistic | {result.t_statistic:.4f} |",
         f"| p-value | {result.p_value:.6f} |",

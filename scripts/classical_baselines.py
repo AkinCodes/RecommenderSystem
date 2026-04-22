@@ -21,12 +21,12 @@ import numpy as np
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, PROJECT_ROOT)
 
-from data.preprocessing import load_movielens_data, prepare_splits, NUM_FEATURES
-from scripts.train_movielens import EMBEDDING_SIZES, MLP_LAYERS
+from data.preprocessing import NUM_FEATURES, load_movielens_data, prepare_splits  # noqa: E402
+from scripts.train_movielens import EMBEDDING_SIZES, MLP_LAYERS  # noqa: E402
 
 DATA_PATH = os.path.join(PROJECT_ROOT, "data", "ml-100k", "u.data")
-from scripts.baseline_comparison import compute_metrics
-from models.classical import FeatureBuilder, ClassicalRanker
+from models.classical import ClassicalRanker, FeatureBuilder  # noqa: E402
+from scripts.baseline_comparison import compute_metrics  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Config
@@ -194,9 +194,9 @@ def main():
 
     # --- Logistic Regression (with StandardScaler pipeline) ---
     logger.info("Training Logistic Regression...")
+    from sklearn.linear_model import LogisticRegression
     from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import StandardScaler
-    from sklearn.linear_model import LogisticRegression
 
     logreg_pipeline = Pipeline([
         ("scaler", StandardScaler()),
@@ -226,6 +226,7 @@ def main():
     # ------------------------------------------------------------------
     logger.info("Loading saved DLRM model from %s...", MODEL_SAVE_PATH)
     import torch
+
     from models.dlrm import DLRMModel
 
     dlrm_metrics = {"NDCG@10": 0.0, "Precision@10": 0.0, "HitRate@10": 0.0,

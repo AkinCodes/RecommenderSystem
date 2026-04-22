@@ -275,8 +275,8 @@ def main():
         "# Baseline Comparison — DLRM vs Simple Baselines on MovieLens 100K\n",
         f"Evaluated on {dlrm_metrics['num_eval_users']} users with top-{K} recommendations.\n",
         "## Results\n",
-        f"| Model           | NDCG@10 | Precision@10 | HitRate@10 |",
-        f"|-----------------|---------|--------------|------------|",
+        "| Model           | NDCG@10 | Precision@10 | HitRate@10 |",
+        "|-----------------|---------|--------------|------------|",
     ]
     for name, m in results:
         report_lines.append(

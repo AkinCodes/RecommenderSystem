@@ -8,14 +8,21 @@ import time
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset
 from sklearn.metrics import roc_auc_score
+from torch.utils.data import DataLoader, Dataset
+
 import wandb
 
 # Ensure project root is on path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from data.preprocessing import (
+    NUM_FEATURES,
+    RATING_MAX,
+    compute_user_stats,
+    load_movielens_data,
+    prepare_splits,
+)
 from models.dlrm import DLRMModel
-from data.preprocessing import load_movielens_data, prepare_splits, compute_user_stats, build_id_mappings, NUM_FEATURES, RATING_MAX
 
 # ---------------------------------------------------------------------------
 # Config
@@ -68,7 +75,6 @@ def ndcg_at_k(ranked_relevances, k):
 def evaluate(model, test_cont, test_cat, test_targets, user2idx, item2idx, test_raw, k=K):
     """Compute ranking metrics per user, then average."""
     model.eval()
-    num_items = len(item2idx)
 
     # Group test interactions by user
     user_test = {}
@@ -253,7 +259,7 @@ def main():
     print(f"  Serving context saved to {ctx_path}")
 
     # Evaluation
-    print(f"\n[4/4] Evaluating on test set...")
+    print("\n[4/4] Evaluating on test set...")
     metrics = evaluate(model, test_cont, test_cat, test_targets, user2idx, item2idx, test_raw)
 
     print("\n" + "=" * 60)
@@ -298,7 +304,7 @@ def main():
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)
-    print(f"  Model:        DLRM")
+    print("  Model:        DLRM")
     print(f"  Dataset:      MovieLens 100K ({len(raw)} ratings)")
     print(f"  Parameters:   {total_params:,}")
     print(f"  Embeddings:   user({EMBEDDING_SIZES[0]}x{MLP_LAYERS[0]}), item({EMBEDDING_SIZES[1]}x{MLP_LAYERS[0]})")

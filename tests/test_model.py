@@ -1,5 +1,5 @@
-import sys
 import os
+import sys
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -10,7 +10,6 @@ import torch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from models.dlrm import DLRMModel
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -43,6 +42,7 @@ def test_client():
     if the trained_model.pth is missing.
     """
     from fastapi.testclient import TestClient
+
     from api.app import app
 
     return TestClient(app)
