@@ -746,6 +746,9 @@ pre code .var { color: #67e8f9; }
       <button onclick="switchTabFromGroup('brainscan','deepDivesGroup')">&#129504; Brain Scan</button>
       <button onclick="switchTabFromGroup('delivery','deepDivesGroup')">&#128230; Delivery Dock</button>
       <button onclick="switchTabFromGroup('prepkitchen','deepDivesGroup')">&#127859; Prep Kitchen</button>
+      <button onclick="switchTabFromGroup('trainingloop','deepDivesGroup')">&#127947; Training Loop</button>
+      <button onclick="switchTabFromGroup('classicals','deepDivesGroup')">&#127919; Classical Baselines</button>
+      <button onclick="switchTabFromGroup('experiments','deepDivesGroup')">&#128300; Experiment Lab</button>
     </div>
   </div>
 </nav>
@@ -2132,12 +2135,12 @@ Then at the very end, a gentle helper named Sigmoid makes sure the number can ne
     <div style="max-width:700px; margin:0 auto 36px; background:rgba(232,184,48,0.06); border:2px solid var(--projector-gold-dim); border-radius:var(--radius); padding:22px 26px;">
       <div style="font-weight:700; font-size:1.05rem; color:var(--projector-gold); margin-bottom:10px;">&#128193; data/preprocessing.py</div>
       <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
-        A single Python module with <strong style="color:var(--text-marquee);">5 functions</strong> that handle everything from loading raw tab-separated data to producing train/test tensors. Every line of feature engineering lives here &mdash; nowhere else.
+        A single Python module with <strong style="color:var(--text-marquee);">6 functions</strong> that handle everything from loading raw tab-separated data to producing train/test tensors. Every line of feature engineering lives here &mdash; nowhere else.
       </p>
     </div>
 
-    <!-- ── SECTION 2: The 5 Functions ── -->
-    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">The Five Functions</h3>
+    <!-- ── SECTION 2: The 6 Functions ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">The Six Functions</h3>
 
     <div style="display:grid; grid-template-columns:1fr; gap:16px; max-width:760px; margin:0 auto 40px;">
 
@@ -2184,6 +2187,15 @@ Then at the very end, a gentle helper named Sigmoid makes sure the number can ne
           <span style="font-size:0.75rem; color:var(--text-muted);">(raw) &rarr; 9-tuple</span>
         </div>
         <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">The orchestrator. Sorts by timestamp, performs an 80/20 split, builds ID mappings from <em>all</em> data, computes stats from <em>training</em> data only, then calls <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">make_features</code> for both splits. Returns everything the training script needs.</p>
+      </div>
+
+      <!-- Function 6 -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-serve); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--stage-serve);">load_item_metadata</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">(data_dir) &rarr; dict</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Loads item metadata (titles, genres, release dates) from the <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">u.item</code> file. Returns a dictionary keyed by item ID with title, genre, and year information &mdash; used by the API to enrich recommendations with human-readable details.</p>
       </div>
 
     </div>
@@ -2265,6 +2277,657 @@ Then at the very end, a gentle helper named Sigmoid makes sure the number can ne
       </p>
       <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
         And the best part? Cookie Monster wrote his recipe on <strong style="color:var(--reel-amber);">ONE card</strong>. Everyone who needs to bake &mdash; whether it&rsquo;s training day or show day &mdash; uses the same card. No one copies it by hand. No one makes their own version. One recipe, everywhere.
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ========== TAB: EXPERIMENT LAB ========== -->
+<div class="tab-panel" id="tab-experiments">
+  <div class="panel-inner" style="max-width:900px; margin:0 auto; padding:24px;">
+    <h2 class="section-heading" style="text-align:center; font-size:1.8rem; margin-bottom:12px;">&#128300; The Experiment Lab</h2>
+    <p style="text-align:center; color:var(--text-muted); max-width:660px; margin:0 auto 36px; font-size:0.95rem;">An A/B testing framework that trains two models on identical data, collects per-user metrics, and runs rigorous statistical analysis to determine if one model truly outperforms the other.</p>
+
+    <!-- ── SECTION 1: Module Overview ── -->
+    <div style="max-width:700px; margin:0 auto 36px; background:rgba(232,184,48,0.06); border:2px solid var(--projector-gold-dim); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--projector-gold); margin-bottom:10px;">&#128193; scripts/experiment_framework.py</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        Two dataclasses (<strong style="color:var(--text-marquee);">ExperimentConfig</strong> and <strong style="color:var(--text-marquee);">ExperimentResult</strong>), one runner class (<strong style="color:var(--text-marquee);">ExperimentRunner</strong>), three statistical helper functions, and a report generator. Everything you need to run, analyse, and document a model comparison.
+      </p>
+    </div>
+
+    <!-- ── SECTION 2: ExperimentConfig ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">The Building Blocks</h3>
+
+    <div style="display:grid; grid-template-columns:1fr; gap:16px; max-width:760px; margin:0 auto 40px;">
+
+      <!-- ExperimentConfig -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-ingest); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--stage-ingest);">ExperimentConfig</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">dataclass</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Defines every parameter for both models in a single frozen blueprint. Model A (control) and Model B (treatment) each get their own <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">embedding_sizes</code>, <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">mlp_layers</code>, <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">lr</code>, and <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">epochs</code>. Shared settings include <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">primary_metric</code> (default NDCG@10), <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">significance_level</code> (0.05), and <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">random_seed</code> (42).</p>
+      </div>
+
+      <!-- ExperimentResult -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-embed); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--stage-embed);">ExperimentResult</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">dataclass</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Holds everything produced by a completed experiment: aggregate metrics per model, <strong style="color:var(--stage-embed);">per-user metric arrays</strong> (the raw material for statistical tests), training times, and all computed statistics &mdash; t-statistic, p-value, confidence interval, Cohen&rsquo;s d, power, significance flag, and winner. Includes a <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">to_dict()</code> method for JSON serialisation.</p>
+      </div>
+
+      <!-- ExperimentRunner -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--curtain-red-light); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--curtain-red-light);">ExperimentRunner</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">class</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">The engine. Takes an <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">ExperimentConfig</code>, loads data once, trains both Model A and Model B on the <strong style="color:var(--curtain-red-light);">exact same training set</strong>, evaluates both on the same test set, collects per-user NDCG/Precision/Recall/HitRate, then runs the full statistical battery. Two modes: <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">run()</code> for standard A/B and <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">run_interleaved()</code> for interleaved experiments.</p>
+      </div>
+
+    </div>
+
+    <!-- ── SECTION 3: Per-User Metric Collection ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">Per-User Metric Collection</h3>
+
+    <div style="max-width:700px; margin:0 auto 36px; background:var(--bg-seat); border:1px solid var(--border); border-radius:var(--radius); padding:22px 26px;">
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        Aggregate metrics (mean NDCG = 0.73) hide variance. Two models might have the same average but wildly different per-user distributions. The framework collects <strong style="color:var(--text-marquee);">per-user metric arrays</strong> &mdash; one NDCG score, one Precision@K, one Recall@K, and one HitRate@K for every user who has at least 2 test interactions and at least 1 relevant item. These arrays become the input to every statistical test.
+      </p>
+      <div style="margin-top:16px; font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--text-muted); background:var(--bg-booth); padding:14px 18px; border-radius:var(--radius-sm); line-height:1.8;">
+        model_a_per_user["NDCG@10"] = [0.81, 0.65, 0.92, 0.43, ...]<br>
+        model_b_per_user["NDCG@10"] = [0.84, 0.71, 0.88, 0.50, ...]<br>
+        <span style="color:var(--text-dim);"># One value per user &rarr; paired statistical tests</span>
+      </div>
+    </div>
+
+    <!-- ── SECTION 4: Statistical Analysis Battery ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">The Statistical Battery</h3>
+
+    <div style="display:grid; grid-template-columns:1fr; gap:16px; max-width:760px; margin:0 auto 40px;">
+
+      <!-- Welch's t-test -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-ingest); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--stage-ingest);">Welch&rsquo;s t-test</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">scipy.stats.ttest_ind(equal_var=False)</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Tests whether the mean difference between Model A and Model B per-user metrics is statistically significant. Uses <strong style="color:var(--stage-ingest);">Welch&rsquo;s variant</strong> (unequal variance assumed) &mdash; safer than Student&rsquo;s t-test because the two models may produce metric distributions with different spreads. Returns a t-statistic and p-value.</p>
+      </div>
+
+      <!-- 95% Confidence Interval -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-embed); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--stage-embed);">95% Confidence Interval</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">compute_confidence_interval(a, b)</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Computes the confidence interval for the <strong style="color:var(--stage-embed);">mean difference (B &minus; A)</strong>. Uses the pooled standard error and a t-critical value at the configured significance level. If the interval excludes zero, the difference is significant. More informative than a binary pass/fail &mdash; it tells you <em>how much</em> better one model might be.</p>
+      </div>
+
+      <!-- Cohen's d -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--spotlight-violet); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--spotlight-violet);">Cohen&rsquo;s d Effect Size</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">compute_cohens_d(a, b)</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Measures <em>practical</em> significance. A p-value can be tiny with a huge sample but the actual difference negligible. Cohen&rsquo;s d normalises the mean difference by the pooled standard deviation. Interpretation: <strong style="color:var(--spotlight-violet);">|d| &lt; 0.2</strong> = negligible, <strong style="color:var(--spotlight-violet);">&lt; 0.5</strong> = small, <strong style="color:var(--spotlight-violet);">&lt; 0.8</strong> = medium, <strong style="color:var(--spotlight-violet);">&ge; 0.8</strong> = large.</p>
+      </div>
+
+      <!-- Statistical Power -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--projector-gold); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--projector-gold);">Statistical Power</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">compute_power(effect_size, n, alpha)</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">The probability of detecting a real difference when one exists. Uses the <strong style="color:var(--projector-gold);">non-central t-distribution</strong> approximation. If power &lt; 0.8, the experiment may not have enough users to draw reliable conclusions &mdash; a &ldquo;not significant&rdquo; result might just mean &ldquo;not enough data.&rdquo; The report warns when power is low.</p>
+      </div>
+
+    </div>
+
+    <!-- ── SECTION 5: Interleaved Experiments ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">Interleaved Experiments</h3>
+
+    <div style="max-width:700px; margin:0 auto 36px; background:rgba(138,79,207,0.08); border:2px solid rgba(138,79,207,0.25); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--spotlight-violet-light); margin-bottom:10px;">&#128256; run_interleaved()</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        Standard A/B tests compare separate user populations. Interleaved experiments remove population bias: both models score <strong style="color:var(--spotlight-violet-light);">every</strong> user, but each user is randomly assigned to either group A or B. This controls for temporal shifts and user-population differences &mdash; the only variable is the model itself.
+      </p>
+      <div style="margin-top:14px; font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--text-muted); background:var(--bg-booth); padding:14px 18px; border-radius:var(--radius-sm); line-height:1.8;">
+        assignments = np.random.choice(["A", "B"], size=n_users)<br>
+        <span style="color:var(--text-dim);"># Each user randomly routed to A or B group</span><br>
+        <span style="color:var(--text-dim);"># Same model trains, different attribution</span>
+      </div>
+    </div>
+
+    <!-- ── SECTION 6: Experiment Pipeline Flow ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">The Experiment Pipeline</h3>
+    <div style="max-width:700px; margin:0 auto 36px; display:flex; flex-direction:column; gap:4px; align-items:center;">
+
+      <div style="background:var(--bg-seat); border:1px solid var(--stage-ingest); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:70%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--stage-ingest); font-weight:600;">ExperimentConfig</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">Define both models + shared settings</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--curtain-red-light); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:70%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--curtain-red-light); font-weight:600;">ExperimentRunner.run()</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">Load data &rarr; train A &rarr; train B (same data)</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="display:flex; gap:16px; width:80%; justify-content:center;">
+        <div style="background:var(--bg-seat); border:1px solid var(--stage-embed); border-radius:var(--radius-sm); padding:12px 16px; text-align:center; flex:1;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--stage-embed); font-weight:600;">_evaluate_per_user</span>
+          <span style="font-size:0.75rem; color:var(--text-muted); display:block;">Model A metrics</span>
+        </div>
+        <div style="background:var(--bg-seat); border:1px solid var(--stage-embed); border-radius:var(--radius-sm); padding:12px 16px; text-align:center; flex:1;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--stage-embed); font-weight:600;">_evaluate_per_user</span>
+          <span style="font-size:0.75rem; color:var(--text-muted); display:block;">Model B metrics</span>
+        </div>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="display:flex; gap:12px; width:90%; justify-content:center; flex-wrap:wrap;">
+        <div style="background:var(--bg-seat); border:1px solid var(--spotlight-violet); border-radius:var(--radius-sm); padding:10px 14px; text-align:center;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--spotlight-violet); font-weight:600;">Welch&rsquo;s t-test</span>
+        </div>
+        <div style="background:var(--bg-seat); border:1px solid var(--spotlight-violet); border-radius:var(--radius-sm); padding:10px 14px; text-align:center;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--spotlight-violet); font-weight:600;">95% CI</span>
+        </div>
+        <div style="background:var(--bg-seat); border:1px solid var(--spotlight-violet); border-radius:var(--radius-sm); padding:10px 14px; text-align:center;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--spotlight-violet); font-weight:600;">Cohen&rsquo;s d</span>
+        </div>
+        <div style="background:var(--bg-seat); border:1px solid var(--spotlight-violet); border-radius:var(--radius-sm); padding:10px 14px; text-align:center;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--spotlight-violet); font-weight:600;">Power</span>
+        </div>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:2px solid var(--stage-serve); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:70%;">
+        <span style="font-size:0.85rem; color:var(--stage-serve); font-weight:700;">ExperimentResult</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">winner + is_significant + full stats</span>
+      </div>
+
+    </div>
+
+    <!-- ── SECTION 7: Report Generation ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">Markdown Report Generation</h3>
+
+    <div style="max-width:700px; margin:0 auto 36px; background:rgba(6,201,161,0.06); border:2px solid rgba(6,201,161,0.2); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--stage-embed); margin-bottom:10px;">&#128196; to_report(result)</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        Generates a complete Markdown report from an <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">ExperimentResult</code>. Includes model comparison tables, per-metric deltas, the full statistical analysis table, and an <strong style="color:var(--stage-embed);">automated interpretation</strong> section that classifies the effect size (small/medium/large) and recommends the winner for deployment. Warns when statistical power is below 0.8.
+      </p>
+    </div>
+
+    <!-- ── SECTION 8: Key Design Decisions ── -->
+    <div style="max-width:700px; margin:0 auto 28px; background:rgba(196,35,59,0.08); border:2px solid rgba(196,35,59,0.25); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--curtain-red-light); margin-bottom:10px;">&#9888;&#65039; Key Design Decision: Same Data, Fair Fight</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        Both models train on the <strong style="color:var(--curtain-red-light);">exact same data split</strong> with the <strong style="color:var(--curtain-red-light);">same random seed</strong>. The only variables are architecture, learning rate, and epochs. Without this control, a difference in metrics could be caused by different training data rather than the model itself.
+      </p>
+    </div>
+
+    <div style="max-width:700px; margin:0 auto 36px; background:rgba(196,35,59,0.08); border:2px solid rgba(196,35,59,0.25); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--curtain-red-light); margin-bottom:10px;">&#9888;&#65039; Why Welch&rsquo;s, Not Student&rsquo;s?</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        Student&rsquo;s t-test assumes both groups have <strong style="color:var(--curtain-red-light);">equal variance</strong>. But a deeper model might produce a tighter distribution of NDCG scores (less variance) than a shallow baseline. Welch&rsquo;s t-test relaxes this assumption &mdash; it adjusts degrees of freedom based on each group&rsquo;s actual variance. Always the safer choice.
+      </p>
+    </div>
+
+    <!-- ── SECTION 9: Sesame Street Box ── -->
+    <div class="ss-box" style="max-width:660px; margin:36px auto 0;">
+      <div style="font-weight:700; font-size:1rem; color:var(--reel-amber); margin-bottom:10px;">&#127775; The Count&rsquo;s Experiment Lab</div>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75;">
+        The Count loves experiments. Today he has TWO cookie recipes &mdash; Recipe A (classic) and Recipe B (extra chocolate chips). He wants to know which one monsters prefer.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        He doesn&rsquo;t just ask ONE monster. He asks <strong style="color:var(--reel-amber);">hundreds</strong> of monsters to taste both. Each monster gives a score. Some love A, some love B, some can&rsquo;t tell the difference.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        Then The Count does what he does best &mdash; he <strong style="color:var(--reel-amber);">COUNTS</strong>. He counts the average score. He counts how spread out the scores are. He counts whether the difference is big enough to be real, or just random luck.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        &ldquo;ONE t-statistic! TWO confidence bounds! THREE effect size categories! Ah ah ah!&rdquo;
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        And if he only asked 5 monsters? The Count shakes his head: &ldquo;Not enough data! Low power! We need <strong style="color:var(--curtain-red-light);">MORE</strong> monsters before we can be sure!&rdquo;
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ========== TAB: CLASSICAL BASELINES ========== -->
+<div class="tab-panel" id="tab-classicals">
+  <div class="panel-inner" style="max-width:900px; margin:0 auto; padding:24px;">
+    <h2 class="section-heading" style="text-align:center; font-size:1.8rem; margin-bottom:12px;">&#127919; Classical Baselines</h2>
+    <p style="text-align:center; color:var(--text-muted); max-width:660px; margin:0 auto 36px; font-size:0.95rem;">Before the DLRM can claim the throne, it has to prove it beats the old guard. These hand-crafted feature models are the yardstick &mdash; if the neural network can&rsquo;t outperform a gradient-boosted tree on 8 features, something is wrong.</p>
+
+    <!-- ── SECTION 1: Module Overview ── -->
+    <div style="max-width:700px; margin:0 auto 36px; background:rgba(232,184,48,0.06); border:2px solid var(--projector-gold-dim); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--projector-gold); margin-bottom:10px;">&#128193; models/classical.py</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        Two classes that give classical ML models the same ranking interface as DLRM. <strong style="color:var(--text-marquee);">FeatureBuilder</strong> computes 8 hand-crafted features per user-item pair. <strong style="color:var(--text-marquee);">ClassicalRanker</strong> wraps any sklearn classifier so <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">compute_metrics</code> can evaluate them identically to the deep model.
+      </p>
+    </div>
+
+    <!-- ── SECTION 2: FeatureBuilder ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">FeatureBuilder &mdash; The 8 Features</h3>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; max-width:760px; margin:0 auto 40px;">
+
+      <!-- User Features -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-ingest); border-radius:var(--radius); padding:20px 24px; grid-column: span 2;">
+        <div style="font-weight:700; font-size:0.95rem; color:var(--stage-ingest); margin-bottom:12px;">&#128100; User Stats (features 0&ndash;3)</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--text-marquee);">user_mean_rating</span>
+            <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.55; margin-top:4px;">Average rating the user gave, normalised to [0, 1] by dividing by 5. Defaults to 3/5 for cold-start users.</p>
+          </div>
+          <div>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--text-marquee);">user_rating_count</span>
+            <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.55; margin-top:4px;">How many ratings the user gave, normalised by the max count across all users. Captures activity level.</p>
+          </div>
+          <div>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--text-marquee);">user_rating_var</span>
+            <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.55; margin-top:4px;">Variance of the user&rsquo;s ratings. A high value means the user is polarised &mdash; loves some, hates others. Low means a flat rater.</p>
+          </div>
+          <div>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--text-marquee);">user_days_active</span>
+            <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.55; margin-top:4px;">Days between first and last training rating, normalised. Measures engagement span.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Item Features -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-embed); border-radius:var(--radius); padding:20px 24px; grid-column: span 2;">
+        <div style="font-weight:700; font-size:0.95rem; color:var(--stage-embed); margin-bottom:12px;">&#127916; Item Stats (features 4&ndash;6)</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+          <div>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--text-marquee);">item_mean_rating</span>
+            <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.55; margin-top:4px;">Average rating the item received, normalised. A proxy for overall quality.</p>
+          </div>
+          <div>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--text-marquee);">item_rating_count</span>
+            <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.55; margin-top:4px;">How many ratings the item received, normalised by the max. Popularity signal.</p>
+          </div>
+          <div>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--text-marquee);">item_popularity_rank</span>
+            <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.55; margin-top:4px;">Rank-ordered popularity normalised to [0, 1]. Most popular item = 1.0.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Deviation Feature -->
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--spotlight-violet); border-radius:var(--radius); padding:20px 24px; grid-column: span 2;">
+        <div style="font-weight:700; font-size:0.95rem; color:var(--spotlight-violet); margin-bottom:8px;">&#128161; Deviation Signal (feature 7)</div>
+        <div style="display:flex; align-items:center; gap:16px;">
+          <code style="background:var(--bg-booth); padding:8px 14px; border-radius:6px; font-size:0.9rem; color:var(--spotlight-violet-light); white-space:nowrap;">user_mean - item_mean</code>
+          <p style="font-size:0.85rem; color:var(--text-main); line-height:1.6;">If a generous rater (mean 4.5) meets a poorly-rated movie (mean 2.0), the deviation is +0.5. This single feature captures how much the user deviates from the crowd for this specific item &mdash; the most predictive hand-crafted signal.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── SECTION 3: ClassicalRanker ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">ClassicalRanker &mdash; The Wrapper</h3>
+
+    <div style="max-width:700px; margin:0 auto 36px; display:grid; gap:16px;">
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-rank); border-radius:var(--radius); padding:20px 24px;">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--stage-rank);">ClassicalRanker</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">(model, feature_builder, name)</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Wraps any fitted sklearn classifier that has <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">predict_proba(X)</code>. Exposes a <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">rank(user_idx, item_indices) &rarr; scores</code> method identical to the DLRM ranker. This lets <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">compute_metrics</code> evaluate logistic regression, random forest, and DLRM with the same code path.</p>
+      </div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-rank); border-radius:var(--radius); padding:20px 24px;">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--stage-rank);">rank()</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">(user_idx, item_indices) &rarr; np.array</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Calls <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">feature_builder(user_idx, item_indices)</code> to build the (N, 8) feature matrix, then passes it through <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">model.predict_proba</code>. Returns the positive-class probability column as scores. Higher = more likely to be a 4+ rating.</p>
+      </div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-rank); border-radius:var(--radius); padding:20px 24px;">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--stage-rank);">build_matrix()</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">(data_raw) &rarr; (X, y)</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Convenience method on FeatureBuilder that builds the full (n_samples, 8) feature matrix and binary labels (rating &ge; 4 = positive) for an entire dataset. Used to train the sklearn classifiers before wrapping them in ClassicalRanker.</p>
+      </div>
+    </div>
+
+    <!-- ── SECTION 4: Why This Matters ── -->
+    <div style="max-width:700px; margin:0 auto 28px; background:rgba(196,35,59,0.08); border:2px solid rgba(196,35,59,0.25); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--curtain-red-light); margin-bottom:10px;">&#9888;&#65039; Why Classical Baselines Exist</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        These are the features a human analyst would compute. The DLRM learns similar patterns automatically via embeddings, but these baselines prove the DLRM is actually adding value. If a logistic regression on 8 hand-crafted features beats the neural network, the neural network is wasting compute. The baselines are the bar the DLRM must clear.
+      </p>
+    </div>
+
+    <!-- ── SECTION 5: Pipeline Flow ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">The Baseline Pipeline</h3>
+    <div style="max-width:700px; margin:0 auto 36px; display:flex; flex-direction:column; gap:4px; align-items:center;">
+
+      <div style="background:var(--bg-seat); border:1px solid var(--stage-ingest); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:70%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--stage-ingest); font-weight:600;">train_raw + user2idx + item2idx</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">from preprocessing.py</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--stage-embed); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:70%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--stage-embed); font-weight:600;">FeatureBuilder.__init__</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">pre-compute all user/item stats from training data only</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--spotlight-violet); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:70%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--spotlight-violet); font-weight:600;">build_matrix(train_raw) &rarr; X, y</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">(n_samples, 8) features + binary labels</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--stage-rank); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:70%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--stage-rank); font-weight:600;">sklearn.fit(X, y)</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">LogisticRegression / RandomForest / GBT</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:2px solid var(--stage-serve); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:70%;">
+        <span style="font-size:0.85rem; color:var(--stage-serve); font-weight:700;">ClassicalRanker.rank()</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">same interface as DLRM &rarr; compute_metrics works for both</span>
+      </div>
+
+    </div>
+
+    <!-- ── SECTION 6: Sesame Street Box ── -->
+    <div class="ss-box" style="max-width:660px; margin:36px auto 0;">
+      <div style="font-weight:700; font-size:1rem; color:var(--reel-amber); margin-bottom:10px;">&#127775; Cookie Monster&rsquo;s Talent Show Judges</div>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75;">
+        Before the fancy AI judge arrives, Cookie Monster brings in the <strong style="color:var(--reel-amber);">OLD JUDGES</strong>. These judges don&rsquo;t have fancy neural networks. They just look at a clipboard with 8 facts about each act:
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        &ldquo;This audience member usually gives <strong style="color:var(--reel-amber);">4 stars</strong>. They&rsquo;ve watched <strong style="color:var(--reel-amber);">200 acts</strong>. This act usually gets <strong style="color:var(--reel-amber);">3 stars</strong>. The audience member rates higher than average for this act.&rdquo;
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        The old judges do pretty well with just their clipboard! But the <strong style="color:var(--reel-amber);">AI JUDGE</strong> can see things the clipboard doesn&rsquo;t capture &mdash; hidden patterns, subtle taste connections, things you can&rsquo;t write down in 8 numbers.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        The old judges are the <strong style="color:var(--curtain-red-light);">BAR TO CLEAR</strong>. If the AI judge can&rsquo;t beat the clipboard judges, the AI judge isn&rsquo;t worth the electricity.
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ========== TAB: TRAINING LOOP ========== -->
+<div class="tab-panel" id="tab-trainingloop">
+  <div class="panel-inner" style="max-width:900px; margin:0 auto; padding:24px;">
+    <h2 class="section-heading" style="text-align:center; font-size:1.8rem; margin-bottom:12px;">&#127947; The Training Loop</h2>
+    <p style="text-align:center; color:var(--text-muted); max-width:660px; margin:0 auto 36px; font-size:0.95rem;">How the DLRM learns from MovieLens 100K &mdash; from raw data loading through evaluation metrics and latency benchmarking. Everything lives in <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">scripts/train_movielens.py</code>.</p>
+
+    <!-- ── SECTION 1: Data Loading ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">Phase 1: Data Loading</h3>
+
+    <div style="max-width:700px; margin:0 auto 36px; background:rgba(232,184,48,0.06); border:2px solid var(--projector-gold-dim); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--projector-gold); margin-bottom:10px;">&#128193; Preprocessing Module</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        The training script imports <strong style="color:var(--text-marquee);">5 functions</strong> from <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">data/preprocessing.py</code>: <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">load_movielens_data</code>, <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">prepare_splits</code>, <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">compute_user_stats</code>, <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">build_id_mappings</code>, plus the constants <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">NUM_FEATURES</code> and <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">RATING_MAX</code>.
+      </p>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">prepare_splits(raw)</code> returns a <strong style="color:var(--projector-gold);">9-tuple</strong>: train continuous features, train categorical features, train targets, test continuous features, test categorical features, test targets, user2idx mapping, item2idx mapping, and the raw test array (needed for per-user evaluation grouping).
+      </p>
+    </div>
+
+    <!-- ── SECTION 2: MovieLensDataset ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--stage-ingest); margin-bottom:20px; text-align:center;">Phase 2: MovieLensDataset</h3>
+
+    <div style="display:grid; grid-template-columns:1fr; gap:16px; max-width:760px; margin:0 auto 40px;">
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-ingest); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--stage-ingest);">MovieLensDataset(Dataset)</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">PyTorch Dataset</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">A minimal PyTorch <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">Dataset</code> subclass. Takes three NumPy arrays (continuous, categorical, targets) and converts them to tensors in <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">__init__</code>. Continuous features become <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">float32</code>, categorical become <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">long</code> (required for embedding lookups), targets become <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">float32</code>.</p>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65; margin-top:8px;"><code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">__getitem__</code> returns a tuple: <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">(cont[idx], cat[idx], targets[idx])</code>. That&rsquo;s it &mdash; no transforms, no augmentation. The preprocessing module already did all the work.</p>
+      </div>
+    </div>
+
+    <!-- ── SECTION 3: DataLoader ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--stage-embed); margin-bottom:20px; text-align:center;">Phase 3: DataLoader Setup</h3>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; max-width:760px; margin:0 auto 40px;">
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-embed); border-radius:var(--radius); padding:20px 24px;">
+        <div style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.9rem; color:var(--stage-embed); margin-bottom:8px;">batch_size = 256</div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Each training step sees 256 user-item pairs at once. Small enough to fit in memory, large enough for stable gradient estimates. ~313 batches per epoch for 80K training samples.</p>
+      </div>
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-embed); border-radius:var(--radius); padding:20px 24px;">
+        <div style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.9rem; color:var(--stage-embed); margin-bottom:8px;">shuffle = True</div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Shuffling prevents the model from learning the order of the data. Without it, the model might memorise batch patterns rather than learning real user-item preferences.</p>
+      </div>
+    </div>
+
+    <!-- ── SECTION 4: Loss & Optimizer ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--curtain-red-light); margin-bottom:20px; text-align:center;">Phase 4: Loss Function &amp; Optimizer</h3>
+
+    <div style="display:grid; grid-template-columns:1fr; gap:16px; max-width:760px; margin:0 auto 40px;">
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--curtain-red-light); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--curtain-red-light);">nn.BCELoss()</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">Binary Cross-Entropy</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Ratings are normalised to [0, 1] by dividing by <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">RATING_MAX (5)</code>. The model&rsquo;s final layer uses <strong style="color:var(--curtain-red-light);">Sigmoid</strong>, so outputs are already in [0, 1]. BCELoss measures how far the predicted probability is from the true normalised rating. It penalises confident wrong answers more harshly than uncertain ones.</p>
+      </div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--spotlight-violet); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; color:var(--spotlight-violet);">Adam Optimizer</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">lr = 0.001</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">A single <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">torch.optim.Adam</code> optimizer handles all parameters &mdash; both the dense MLP weights and the sparse embedding tables. Adam adapts the learning rate per-parameter using running estimates of the first and second moments of the gradient. The learning rate of <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">0.001</code> is the standard default.</p>
+      </div>
+    </div>
+
+    <!-- ── SECTION 5: The Training Loop ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">Phase 5: The Training Loop</h3>
+
+    <div style="max-width:700px; margin:0 auto 36px; display:flex; flex-direction:column; gap:4px; align-items:center;">
+
+      <div style="background:var(--bg-seat); border:2px solid var(--projector-gold); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:80%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--projector-gold); font-weight:600;">for epoch in range(1, 21)</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">20 full passes over the training data</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--stage-ingest); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:80%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--stage-ingest); font-weight:600;">model.train()</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">enable training mode (dropout, batch norm behave differently)</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--stage-embed); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:80%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--stage-embed); font-weight:600;">for cont_b, cat_b, target_b in train_loader</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">iterate through ~313 batches of 256 samples</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--curtain-red-light); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:80%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--curtain-red-light); font-weight:600;">optimizer.zero_grad()</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">clear accumulated gradients from previous step</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--spotlight-violet); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:80%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--spotlight-violet); font-weight:600;">preds = model(cont_b, cat_b).squeeze()</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">forward pass &mdash; continuous features + embedding lookups &rarr; MLP &rarr; sigmoid</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--reel-amber); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:80%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--reel-amber); font-weight:600;">loss = criterion(preds, target_b)</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">BCELoss: how wrong were we?</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--curtain-red-light); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:80%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--curtain-red-light); font-weight:600;">loss.backward()</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">backward pass &mdash; compute gradients for every parameter</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:2px solid var(--stage-serve); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:80%;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--stage-serve); font-weight:600;">optimizer.step()</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">update all weights using Adam&rsquo;s adaptive learning rates</span>
+      </div>
+
+    </div>
+
+    <div style="max-width:700px; margin:0 auto 36px; background:rgba(6,201,161,0.06); border:2px solid rgba(6,201,161,0.2); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--stage-embed); margin-bottom:10px;">&#128161; W&amp;B Logging</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        After each epoch, the average training loss is logged to <strong style="color:var(--stage-embed);">Weights &amp; Biases</strong> via <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">wandb.log({"train_loss": avg_loss, "epoch": epoch})</code>. This creates live loss curves you can monitor during training.
+      </p>
+    </div>
+
+    <!-- ── SECTION 6: Evaluation Metrics ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--stage-rank); margin-bottom:20px; text-align:center;">Phase 6: Evaluation</h3>
+
+    <div style="display:grid; grid-template-columns:1fr; gap:16px; max-width:760px; margin:0 auto 40px;">
+
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-rank); border-radius:var(--radius); padding:20px 24px;">
+        <div style="font-weight:700; font-size:0.95rem; color:var(--stage-rank); margin-bottom:8px;">How Evaluation Works</div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">After training, the model is set to <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">model.eval()</code>. For each user in the test set (minimum 2 interactions, at least 1 relevant item), the model scores <strong>all</strong> of that user&rsquo;s test items. Items with rating &ge; 4 (normalised &ge; 0.8) are considered <strong style="color:var(--stage-rank);">relevant</strong>. Scores are ranked descending to produce a top-K list.</p>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-ingest); border-radius:var(--radius); padding:20px 24px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.9rem; color:var(--stage-ingest); margin-bottom:8px;">NDCG@10</div>
+          <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Normalised Discounted Cumulative Gain. Measures ranking quality &mdash; relevant items at the top of the list score higher than relevant items buried lower. Normalised against the ideal ordering.</p>
+        </div>
+        <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-embed); border-radius:var(--radius); padding:20px 24px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.9rem; color:var(--stage-embed); margin-bottom:8px;">Precision@10</div>
+          <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Of the top 10 items recommended, how many were actually relevant? Simple fraction: <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">hits_in_k / k</code>.</p>
+        </div>
+        <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--spotlight-violet); border-radius:var(--radius); padding:20px 24px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.9rem; color:var(--spotlight-violet); margin-bottom:8px;">Recall@10</div>
+          <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Of all relevant items for this user, how many appeared in the top 10? <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">hits_in_k / len(relevant)</code>. High recall means we&rsquo;re finding most of what the user likes.</p>
+        </div>
+        <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--reel-amber); border-radius:var(--radius); padding:20px 24px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.9rem; color:var(--reel-amber); margin-bottom:8px;">HitRate@10</div>
+          <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Binary: did at least one relevant item appear in the top 10? 1.0 if yes, 0.0 if no. Averaged across all users to get the overall hit rate.</p>
+        </div>
+      </div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--curtain-red-light); border-radius:var(--radius); padding:20px 24px;">
+        <div style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.9rem; color:var(--curtain-red-light); margin-bottom:8px;">AUC</div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Area Under the ROC Curve via <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">sklearn.metrics.roc_auc_score</code>. Measures how well the model separates relevant from non-relevant items across <em>all</em> test interactions (not per-user). Only computed when both positive and negative labels exist.</p>
+      </div>
+
+    </div>
+
+    <!-- ── SECTION 7: Inference Latency ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--spotlight-violet-light); margin-bottom:20px; text-align:center;">Phase 7: Inference Latency Benchmarking</h3>
+
+    <div style="display:grid; grid-template-columns:1fr; gap:16px; max-width:760px; margin:0 auto 40px;">
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--spotlight-violet-light); border-radius:var(--radius); padding:20px 24px; transition:transform var(--transition); cursor:default;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">After evaluation, the script benchmarks single-sample inference speed. A dummy input (<code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">1 &times; NUM_FEATURES</code> continuous + <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">1 &times; 2</code> categorical) is created.</p>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65; margin-top:8px;"><strong style="color:var(--spotlight-violet-light);">100 warmup runs</strong> ensure JIT compilation and cache warming don&rsquo;t pollute the measurements.</p>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65; margin-top:8px;">Then <strong style="color:var(--spotlight-violet-light);">1,000 timed runs</strong> using <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">time.perf_counter()</code> (nanosecond precision). Each run&rsquo;s latency in milliseconds is recorded.</p>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65; margin-top:8px;">Reported stats: <strong>Mean</strong>, <strong>Median</strong>, <strong style="color:var(--spotlight-violet-light);">P95</strong>, <strong style="color:var(--spotlight-violet-light);">P99</strong>, Min, Max. The P95 and P99 are what matter for production SLAs &mdash; they tell you the worst-case latency for 95% and 99% of requests.</p>
+      </div>
+    </div>
+
+    <!-- ── SECTION 8: Model Saving ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--stage-serve); margin-bottom:20px; text-align:center;">Phase 8: Model Saving &amp; Serving Context</h3>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; max-width:760px; margin:0 auto 40px;">
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-serve); border-radius:var(--radius); padding:20px 24px;">
+        <div style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.9rem; color:var(--stage-serve); margin-bottom:8px;">torch.save(state_dict)</div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">Saves only the model weights to <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">trained_model_movielens.pth</code>. The architecture is defined in code &mdash; you recreate the model structure then load the weights into it.</p>
+      </div>
+      <div style="background:var(--bg-seat); border:1px solid var(--border); border-left:4px solid var(--stage-serve); border-radius:var(--radius); padding:20px 24px;">
+        <div style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.9rem; color:var(--stage-serve); margin-bottom:8px;">serving_context.pkl</div>
+        <p style="font-size:0.85rem; color:var(--text-main); line-height:1.65;">A pickle file containing everything the API needs at serving time: <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">user2idx</code>, <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">item2idx</code>, <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">idx2item</code> (reverse mapping), <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">user_features</code> (precomputed continuous features per user), and <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.8rem;">max_count</code>. This bridges training and serving.</p>
+      </div>
+    </div>
+
+    <div style="max-width:700px; margin:0 auto 28px; background:rgba(196,35,59,0.08); border:2px solid rgba(196,35,59,0.25); border-radius:var(--radius); padding:22px 26px;">
+      <div style="font-weight:700; font-size:1.05rem; color:var(--curtain-red-light); margin-bottom:10px;">&#9888;&#65039; Key Detail: Training-Only Stats in Serving Context</div>
+      <p style="font-size:0.9rem; color:var(--text-main); line-height:1.75;">
+        The serving context&rsquo;s <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">user_features</code> are computed from <code style="background:var(--bg-booth); padding:2px 6px; border-radius:4px; font-size:0.85rem;">raw[:int(len(raw) * 0.8)]</code> &mdash; the training portion only. This means the API serves predictions using the same statistics the model was trained on. No leakage at serving time either.
+      </p>
+    </div>
+
+    <!-- ── SECTION 9: Complete Pipeline Flow ── -->
+    <h3 style="font-family:'Playfair Display',serif; font-size:1.3rem; color:var(--projector-gold); margin-bottom:20px; text-align:center;">The Complete Pipeline</h3>
+    <div style="max-width:700px; margin:0 auto 36px; display:flex; flex-direction:column; gap:4px; align-items:center;">
+
+      <div style="background:var(--bg-seat); border:1px solid var(--stage-ingest); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:75%;">
+        <span style="font-size:0.85rem; color:var(--stage-ingest); font-weight:600;">&#9312; Load &amp; split data</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">load_movielens_data &rarr; prepare_splits &rarr; 9-tuple</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--stage-embed); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:75%;">
+        <span style="font-size:0.85rem; color:var(--stage-embed); font-weight:600;">&#9313; Build model + DataLoader</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">DLRMModel(2, [943,1682], [128,64,32]) + DataLoader(bs=256, shuffle)</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--curtain-red-light); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:75%;">
+        <span style="font-size:0.85rem; color:var(--curtain-red-light); font-weight:600;">&#9314; Train 20 epochs</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">BCELoss + Adam(lr=0.001) &rarr; zero_grad &rarr; forward &rarr; backward &rarr; step</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--stage-rank); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:75%;">
+        <span style="font-size:0.85rem; color:var(--stage-rank); font-weight:600;">&#9315; Evaluate</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">NDCG@10, Precision@10, Recall@10, HitRate@10, AUC</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:1px solid var(--spotlight-violet-light); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:75%;">
+        <span style="font-size:0.85rem; color:var(--spotlight-violet-light); font-weight:600;">&#9316; Benchmark latency</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">100 warmup + 1000 timed &rarr; mean, p95, p99</span>
+      </div>
+      <div style="color:var(--text-dim); font-size:1.2rem;">&darr;</div>
+
+      <div style="background:var(--bg-seat); border:2px solid var(--stage-serve); border-radius:var(--radius-sm); padding:12px 24px; text-align:center; width:75%;">
+        <span style="font-size:0.85rem; color:var(--stage-serve); font-weight:700;">&#9317; Save model + serving context</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block;">.pth weights + .pkl serving context &rarr; ready for API</span>
+      </div>
+
+    </div>
+
+    <!-- ── SECTION 10: Sesame Street Box ── -->
+    <div class="ss-box" style="max-width:660px; margin:36px auto 0;">
+      <div style="font-weight:700; font-size:1rem; color:var(--reel-amber); margin-bottom:10px;">&#127775; Ernie&rsquo;s Talent Show Rehearsal</div>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75;">
+        Ernie is training judges for the Talent Show. He has a big binder of past performances &mdash; which acts each monster liked, which ones they walked out on.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        First, Ernie organises the binder. He sorts everything by <strong style="color:var(--reel-amber);">DATE</strong> and splits it: the first 80% is the <strong style="color:var(--reel-amber);">PRACTICE BINDER</strong>, the last 20% is the <strong style="color:var(--reel-amber);">SECRET TEST</strong> &mdash; performances the judges have never seen.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        Then Ernie runs rehearsals. He shows the judges <strong style="color:var(--reel-amber);">256 performances at a time</strong> (a batch). After each batch, the judges guess: &ldquo;Would this monster like this act?&rdquo; Ernie checks the answer and says &ldquo;You were THIS wrong&rdquo; (that&rsquo;s the <strong style="color:var(--curtain-red-light);">loss</strong>). The judges adjust their thinking a tiny bit (that&rsquo;s the <strong style="color:var(--spotlight-violet);">optimizer step</strong>).
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        They do this <strong style="color:var(--reel-amber);">20 TIMES</strong> through the whole practice binder. By round 20, they&rsquo;re pretty good at guessing.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        Now comes the real test. Ernie pulls out the Secret Test performances. For each monster, he asks the judges to <strong style="color:var(--reel-amber);">RANK</strong> all the acts: &ldquo;Which ones will this monster love?&rdquo; Then he checks: Did they put the good acts in the top 10? That&rsquo;s <strong style="color:var(--stage-ingest);">NDCG</strong>. Did most of their top 10 picks actually hit? That&rsquo;s <strong style="color:var(--stage-embed);">Precision</strong>. Did they find most of the hidden gems? That&rsquo;s <strong style="color:var(--spotlight-violet);">Recall</strong>.
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        Finally, Ernie times the judges: &ldquo;How fast can you score one act?&rdquo; He throws away the first 100 answers (they&rsquo;re still warming up), then times the next 1,000. The <strong style="color:var(--spotlight-violet-light);">95th percentile</strong> time is what matters &mdash; that&rsquo;s the promise to the audience: &ldquo;Almost all recommendations arrive this fast.&rdquo;
+      </p>
+      <p style="font-size:0.88rem; color:var(--text-main); line-height:1.75; margin-top:10px;">
+        When the judges are ready, Ernie writes down everything they learned in a <strong style="color:var(--stage-serve);">notebook</strong> (the model weights) and a <strong style="color:var(--stage-serve);">cheat sheet</strong> (the serving context) so anyone running the Talent Show can use the same judges without retraining them.
       </p>
     </div>
 

@@ -5,6 +5,7 @@ Provides movie recommendation endpoints powered by a DLRM model and the TMDB API
 
 import logging
 import os
+import pickle
 import time
 
 import httpx
@@ -15,6 +16,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from data.preprocessing import load_item_metadata
 from models.dlrm import DLRMModel
 
 # Configuration
@@ -166,6 +168,45 @@ try:
 except Exception as exc:
     logger.error("Failed to load DLRM model: %s", exc, exc_info=True)
     model = None
+
+# Serving context (user/item mappings + per-user features)
+
+SERVING_CONTEXT_PATH = os.path.join(os.path.dirname(__file__), "..", "serving_context.pkl")
+DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "ml-100k")
+
+serving_context: dict | None = None
+item_metadata: dict = {}
+
+if os.path.exists(SERVING_CONTEXT_PATH):
+    try:
+        with open(SERVING_CONTEXT_PATH, "rb") as _f:
+            serving_context = pickle.load(_f)
+        logger.info(
+            "Serving context loaded: %d users, %d items.",
+            len(serving_context["user2idx"]),
+            len(serving_context["item2idx"]),
+        )
+    except (pickle.UnpicklingError, EOFError, Exception) as e:
+        logger.error("Failed to load serving context: %s", e)
+        serving_context = None
+else:
+    logger.warning("Serving context not found at '%s'. /recommend endpoint will be unavailable.", SERVING_CONTEXT_PATH)
+
+if os.path.exists(os.path.join(DATA_DIR, "u.item")):
+    item_metadata = load_item_metadata(DATA_DIR)
+    logger.info("Item metadata loaded: %d movies.", len(item_metadata))
+else:
+    logger.warning("Item metadata file not found at '%s/u.item'.", DATA_DIR)
+
+# Cold-start fallback: pre-compute popular items from item metadata
+popular_items: list[dict] = []
+if item_metadata:
+    popular_ids = sorted(item_metadata.keys())[:50]
+    popular_items = [
+        {"item_id": int(iid), "score": 0.0, "title": item_metadata[iid]["title"], "genres": item_metadata[iid]["genres"]}
+        for iid in popular_ids
+    ]
+    logger.info("Cold-start fallback ready: %d popular items.", len(popular_items))
 
 # App
 
@@ -382,6 +423,50 @@ async def predict(request: PredictionRequest):
     )
 
     return recommended_movies[:5]
+
+
+# Personalized recommendations
+
+
+@app.get("/api/v1/recommend/{user_id}")
+async def recommend(user_id: int, top_k: int = 10):
+    """Return top-K personalized recommendations for a known user."""
+    if not model_loaded or model is None:
+        raise HTTPException(status_code=503, detail="Model is not loaded.")
+
+    if serving_context is None:
+        raise HTTPException(status_code=503, detail="Serving context is not loaded.")
+
+    if user_id not in serving_context["user2idx"]:
+        if popular_items:
+            return {"user_id": user_id, "recommendations": popular_items[:top_k], "note": "cold-start: popularity-based fallback"}
+        raise HTTPException(status_code=404, detail=f"Unknown user: {user_id}")
+
+    user_idx = serving_context["user2idx"][user_id]
+    user_cont = serving_context["user_features"][user_idx]
+    num_items = len(serving_context["item2idx"])
+
+    # Build batch: same user features for every item
+    cont = torch.tensor([user_cont] * num_items, dtype=torch.float32)
+    cat = torch.tensor([[user_idx, i] for i in range(num_items)], dtype=torch.int64)
+
+    with torch.no_grad():
+        scores = model(cont, cat).squeeze()
+
+    top_indices = scores.topk(top_k).indices.tolist()
+
+    results = []
+    for idx in top_indices:
+        raw_item_id = int(serving_context["idx2item"][idx])
+        meta = item_metadata.get(raw_item_id, {"title": f"Item {raw_item_id}", "genres": []})
+        results.append({
+            "item_id": raw_item_id,
+            "score": round(scores[idx].item(), 4),
+            "title": meta["title"],
+            "genres": meta["genres"],
+        })
+
+    return {"user_id": user_id, "recommendations": results}
 
 
 # Keep old endpoint for backwards compatibility (redirects to versioned)

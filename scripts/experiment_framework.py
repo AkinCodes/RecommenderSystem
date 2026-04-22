@@ -139,7 +139,12 @@ def compute_confidence_interval(
     diff = np.mean(b) - np.mean(a)
     na, nb = len(a), len(b)
     se = np.sqrt(np.var(a, ddof=1) / na + np.var(b, ddof=1) / nb)
-    df = na + nb - 2
+    # Welch-Satterthwaite degrees of freedom (matches equal_var=False in ttest_ind)
+    s1_sq_n = np.var(a, ddof=1) / na
+    s2_sq_n = np.var(b, ddof=1) / nb
+    df = (s1_sq_n + s2_sq_n) ** 2 / (
+        s1_sq_n ** 2 / (na - 1) + s2_sq_n ** 2 / (nb - 1)
+    )
     t_crit = stats.t.ppf(1 - alpha / 2, df)
     return (float(diff - t_crit * se), float(diff + t_crit * se))
 
