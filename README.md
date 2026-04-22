@@ -319,6 +319,45 @@ All errors return structured JSON:
 }
 ```
 
+### `GET /api/v1/recommend/{user_id}`
+
+Personalized top-K recommendations for a known MovieLens user. Scores every item in one forward pass and returns the highest-scoring movies with metadata.
+
+**Query parameters:**
+
+| Parameter | Default | Description |
+|---|---|---|
+| `top_k` | `10` | Number of recommendations to return |
+
+**Example:**
+
+```bash
+curl http://localhost:8000/api/v1/recommend/1?top_k=5
+```
+
+**Response** (200):
+
+```json
+{
+  "user_id": 1,
+  "recommendations": [
+    {
+      "item_id": 50,
+      "score": 0.9312,
+      "title": "Star Wars (1977)",
+      "genres": ["Action", "Adventure", "Romance", "Sci-Fi", "War"]
+    }
+  ]
+}
+```
+
+**Error responses:**
+
+| Status | When |
+|---|---|
+| 404 | User ID not found in training data |
+| 503 | Model or serving context not loaded |
+
 ### `POST /predict/`
 
 Legacy endpoint. Delegates to `/api/v1/predict` — same request format, same response.
