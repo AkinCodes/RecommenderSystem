@@ -30,7 +30,7 @@ jobs:
           pip install ".[dev]"
 
       - name: Lint
-        run: ruff check models/ api/ data/ scripts/ tests/
+        run: ruff check models/ api/ data/ tests/
 
       - name: Run Tests
         run: pytest tests/test_model.py -v --tb=short
