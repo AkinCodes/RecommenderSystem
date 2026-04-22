@@ -355,7 +355,8 @@ curl http://localhost:8000/api/v1/recommend/1?top_k=5
 
 | Status | When |
 |---|---|
-| 404 | User ID not found in training data |
+| 200 | Unknown user — returns popularity-based fallback with `"note": "cold-start"` |
+| 404 | Unknown user AND no popular items available (rare) |
 | 503 | Model or serving context not loaded |
 
 ### `POST /predict/`
@@ -450,15 +451,17 @@ RecommenderSystem/
 │   └── netflix_titles.csv     # Dataset for experimentation
 ├── docker/
 │   └── Dockerfile             # Lightweight Dockerfile (Python 3.9, pip)
-├── ci_cd/
-│   └── github_actions.yml     # GitHub Actions CI pipeline — test on push to main
+├── .github/
+│   └── workflows/ci.yml       # GitHub Actions CI pipeline — lint + test on push to main
 ├── Dockerfile                 # Production Dockerfile (Python 3.11, uv, health checks)
 ├── Makefile                   # Dev shortcuts — install, run, test, lint, docker, clean
 ├── pyproject.toml             # Project metadata, dependencies, tool config (ruff, pytest)
-├── task-definition.json       # AWS ECS Fargate task definition
-├── trust-policy.json          # AWS IAM trust policy for ECS execution role
+├── deploy/
+│   ├── task-definition.json   # AWS ECS Fargate task definition
+│   └── trust-policy.json      # AWS IAM trust policy for ECS execution role
 ├── .env.example               # Template for required environment variables
-├── trained_model.pth          # Serialized model weights (loaded at startup)
+├── data/
+│   └── preprocessing.py       # Shared feature engineering (prevents train/serve skew)
 └── README.md                  # You are here
 ```
 
@@ -501,12 +504,11 @@ aws ecs update-service --cluster your-cluster --service your-service --force-new
 
 ## What I'd Improve Next
 
-- **More model architectures** — add a DCN (Deep & Cross Network) and a two-tower model, let users pick which one scores their preferences
-- **A/B testing framework** — serve different models to different users and track which one drives better engagement
-- **User profiles** — store preference history so the model can learn from past interactions, not just a single request
-- **Genre enrichment** — use TMDB genre IDs to fill in the "Unknown" genre field and enable genre-aware filtering
-- **Director/cast data** — hit the TMDB credits endpoint to return actual director names and top cast
-- **Batch predictions** — accept multiple user profiles in one request for bulk recommendation scenarios
+- **Two-tower retrieval stage** — add a candidate generation model with FAISS for ANN search, feeding into the DLRM ranker. This is the standard two-stage architecture used in production at Spotify, YouTube, and Pinterest.
+- **Sequential model** — add SASRec or BERT4Rec to capture temporal user behavior (what the user watched recently, not just aggregate stats)
+- **Genre features in DLRM** — genre data is already loaded but not used in training. Adding content features would improve cold-start for items.
+- **Diversity and coverage metrics** — track catalog coverage, intra-list diversity, and novelty alongside accuracy metrics
+- **Feature store** — replace the pickle-based serving context with a feature store (Feast/Redis) for fresh user features
 - **Model versioning** — track which model version served each prediction for reproducibility
 - **Rate limiting** — protect the TMDB integration from getting throttled under heavy load
 - **Caching** — Redis or in-memory cache for TMDB responses since popular movies don't change every second
