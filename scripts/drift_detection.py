@@ -138,7 +138,7 @@ def main():
 
     # KS test
     ks_stat, ks_pval = stats.ks_2samp(train_scores, test_scores)
-    print(f"\n  Kolmogorov-Smirnov test (train vs test):")
+    print("\n  Kolmogorov-Smirnov test (train vs test):")
     print(f"    KS statistic: {ks_stat:.4f}")
     print(f"    p-value:      {ks_pval:.6f}")
 
@@ -177,7 +177,7 @@ def main():
     ks_stat2, ks_pval2 = stats.ks_2samp(test_scores, corrupted_scores)
     kl_div2 = kl_divergence(test_scores, corrupted_scores)
 
-    print(f"\n  Kolmogorov-Smirnov test (test vs corrupted):")
+    print("\n  Kolmogorov-Smirnov test (test vs corrupted):")
     print(f"    KS statistic: {ks_stat2:.4f}")
     print(f"    p-value:      {ks_pval2:.6f}")
     print(f"\n  KL divergence (test || corrupted): {kl_div2:.4f}")

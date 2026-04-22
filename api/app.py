@@ -203,7 +203,11 @@ popular_items: list[dict] = []
 if item_metadata:
     popular_ids = sorted(item_metadata.keys())[:50]
     popular_items = [
-        {"item_id": int(iid), "score": 0.0, "title": item_metadata[iid]["title"], "genres": item_metadata[iid]["genres"]}
+        {
+            "item_id": int(iid), "score": 0.0,
+            "title": item_metadata[iid]["title"],
+            "genres": item_metadata[iid]["genres"],
+        }
         for iid in popular_ids
     ]
     logger.info("Cold-start fallback ready: %d popular items.", len(popular_items))
@@ -439,7 +443,11 @@ async def recommend(user_id: int, top_k: int = 10):
 
     if user_id not in serving_context["user2idx"]:
         if popular_items:
-            return {"user_id": user_id, "recommendations": popular_items[:top_k], "note": "cold-start: popularity-based fallback"}
+            return {
+                "user_id": user_id,
+                "recommendations": popular_items[:top_k],
+                "note": "cold-start: popularity-based fallback",
+            }
         raise HTTPException(status_code=404, detail=f"Unknown user: {user_id}")
 
     user_idx = serving_context["user2idx"][user_id]

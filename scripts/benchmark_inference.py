@@ -197,7 +197,7 @@ def main():
         f"- **Warmup runs:** {WARMUP_RUNS}",
         f"- **Benchmark runs:** {BENCHMARK_RUNS}",
         f"- **Batch sizes:** {BATCH_SIZES}",
-        f"- **Device:** CPU",
+        "- **Device:** CPU",
         "",
         "## Results",
         "",

@@ -6,7 +6,6 @@ identically to the deep learning model.
 """
 
 import logging
-import time
 
 import numpy as np
 
