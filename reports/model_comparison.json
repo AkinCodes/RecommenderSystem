@@ -1,0 +1,69 @@
+{
+  "dataset": "MovieLens-100K",
+  "num_ratings": 100000,
+  "num_users": 943,
+  "num_items": 1682,
+  "train_size": 80000,
+  "test_size": 20000,
+  "num_features": 8,
+  "dlrm_config": {
+    "embedding_sizes": [
+      943,
+      1682
+    ],
+    "mlp_layers": [
+      128,
+      64,
+      32
+    ],
+    "epochs": 20,
+    "batch_size": 256,
+    "learning_rate": 0.001,
+    "weight_decay": 1e-05,
+    "dropout": 0.2,
+    "early_stop_patience": 5,
+    "param_count": 363905
+  },
+  "models": {
+    "DLRM": {
+      "NDCG@10": 0.6558140056560818,
+      "Precision@10": 0.5731448763250883,
+      "Recall@10": 0.37926743369924504,
+      "HitRate@10": 0.9893992932862191,
+      "AUC": 0.5481316550494508,
+      "num_eval_users": 283,
+      "train_time_s": 12.939603805541992,
+      "latency_ms": 0.12860291521064937
+    },
+    "XGBoost": {
+      "NDCG@10": 0.7836253679915195,
+      "Precision@10": 0.6706713780918727,
+      "Recall@10": 0.42057590440696047,
+      "HitRate@10": 1.0,
+      "AUC": 0.6668059044589445,
+      "num_eval_users": 283,
+      "train_time_s": 0.6122519969940186,
+      "latency_ms": 0.28265524422749877
+    },
+    "LightGBM": {
+      "NDCG@10": 0.7819828555609268,
+      "Precision@10": 0.666077738515901,
+      "Recall@10": 0.41614759712019983,
+      "HitRate@10": 0.9964664310954063,
+      "AUC": 0.6522641074541785,
+      "num_eval_users": 283,
+      "train_time_s": 1.2622780799865723,
+      "latency_ms": 0.49675435526296496
+    },
+    "LogReg": {
+      "NDCG@10": 0.8023203058016561,
+      "Precision@10": 0.6879858657243817,
+      "Recall@10": 0.4298581139087045,
+      "HitRate@10": 1.0,
+      "AUC": 0.681841751932061,
+      "num_eval_users": 283,
+      "train_time_s": 0.035494327545166016,
+      "latency_ms": 0.12098205974325538
+    }
+  }
+}
