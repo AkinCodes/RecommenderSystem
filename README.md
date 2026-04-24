@@ -17,7 +17,7 @@ The API is live right now. Try it:
 ```bash
 curl -X POST https://recommendersystem-l993.onrender.com/api/v1/predict \
   -H "Content-Type: application/json" \
-  -d '{"continuous_features": [0.5, 0.8], "categorical_features": [1, 2]}'
+  -d '{"continuous_features": [0.76, 0.5, 0.3, 0.4, 0.72, 0.6, 0.8, 0.52], "categorical_features": [1, 2]}'
 ```
 
 > **Note:** It's on Render's free tier, so the first request might take ~30 seconds to wake up. After that, responses come back fast.
@@ -59,7 +59,7 @@ Five movies, ranked by how well they match your taste profile, each with a poste
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         CLIENT REQUEST                              │
 │  POST /api/v1/predict                                               │
-│  { "continuous_features": [0.5, 0.8],                               │
+│  { "continuous_features": [0.76, 0.5, 0.3, 0.4, 0.72, 0.6, 0.8, 0.52],│
 │    "categorical_features": [1, 2] }                                 │
 └──────────────────────────┬──────────────────────────────────────────┘
                            │
@@ -75,7 +75,7 @@ Five movies, ranked by how well they match your taste profile, each with a poste
 │                                                                     │
 │  continuous features ──► Dense Layer ──────────┐                    │
 │                                                 ├──► MLP ──► Score  │
-│  categorical features ──► Embedding Tables ────┘    [64→32→16→1]   │
+│  categorical features ──► Embedding Tables ────┘    [384→64→32→1]  │
 │                                                      + Sigmoid      │
 │                                                      → [0.0, 1.0]  │
 └──────────────────────────┬──────────────────────────────────────────┘
@@ -96,8 +96,8 @@ Five movies, ranked by how well they match your taste profile, each with a poste
 
 **Step by step:**
 
-1. **You send preferences** — two continuous features (numbers describing your taste, like how much you value action vs. drama) and two categorical features (discrete choices, like preferred era or language).
-2. **DLRM processes them** — the model takes your number preferences through a dense layer and your category choices through separate embedding tables. Each embedding turns a category ID into a learned vector. Then everything gets concatenated and pushed through a multi-layer perceptron (64 → 32 → 16 neurons) that outputs a single score between 0 and 1.
+1. **You send preferences** — 8 continuous features (engineered stats like average rating, activity, item popularity) and 2 categorical features (user ID and item ID).
+2. **DLRM processes them** — the model takes your 8 continuous features through a dense layer and your category choices through separate embedding tables (`[943, 1682]`, each 128-dim). Then everything gets concatenated and pushed through a multi-layer perceptron (384 → 64 → 32 neurons) with Dropout(0.2) that outputs a single score between 0 and 1.
 3. **Real movies get fetched** — the API calls TMDB asynchronously to grab currently popular movies with their metadata.
 4. **Results get ranked** — movies are sorted by how well their TMDB rating aligns with the model's prediction score, and the top 5 are returned with titles, posters, release years, and summaries.
 
@@ -109,10 +109,11 @@ Five movies, ranked by how well they match your taste profile, each with a poste
 
 The DLRM (Deep Learning Recommendation Model) is built from scratch in PyTorch. What makes it interesting:
 
-- **Handles mixed feature types** — continuous features (like numeric taste scores) go through a dense layer, while categorical features (like genre preferences) each get their own embedding table. This is how real recommendation systems at companies like Meta handle the mix of "how much" and "which one" data.
-- **Embedding tables** — 75 total embeddings (2 for user-level categories + 73 for genre-level features), each mapping category IDs to learned vectors.
-- **MLP interaction layer** — a 3-layer network (64 → 32 → 16) with ReLU activations that learns how continuous and categorical signals interact.
-- **Sigmoid output** — produces a score between 0 and 1, representing predicted preference strength.
+- **Handles mixed feature types** — 8 continuous features (engineered user/item stats) go through a dense layer, while categorical features (user ID, item ID) each get their own embedding table. This is how real recommendation systems at companies like Meta handle the mix of "how much" and "which one" data.
+- **Embedding tables** — `[943, 1682]` — two embedding tables (users, items), each 128-dimensional.
+- **MLP interaction layer** — a 3-layer network (384 → 64 → 32) with ReLU activations and Dropout(0.2) that learns how continuous and categorical signals interact.
+- **Binary classification** — ratings >= 4 are positive, trained with BCELoss. Sigmoid output produces a score between 0 and 1.
+- **Regularization** — Dropout(0.2), weight decay (1e-5), early stopping (patience=5).
 - **Input validation** — the forward pass checks for None inputs, mismatched feature counts, and MLP shape mismatches, raising clear errors instead of crashing silently.
 
 ### Real Movie Data
@@ -134,7 +135,7 @@ The DLRM (Deep Learning Recommendation Model) is built from scratch in PyTorch. 
 - **Makefile** — one command for anything: `make run`, `make test`, `make lint`, `make docker-build`.
 - **uv for dependency management** — fast, reproducible installs via `pyproject.toml`.
 - **Docker with health checks** — production Dockerfile includes a `HEALTHCHECK` directive that pings `/health` every 30 seconds.
-- **Comprehensive tests** — 16+ tests covering model forward passes, API endpoints, input validation, edge cases (empty batches, wrong types, missing fields), and structured error responses.
+- **Comprehensive tests** — 42 tests covering model forward passes, API endpoints, input validation, edge cases (empty batches, wrong types, missing fields), and structured error responses.
 - **Ruff for linting** — fast Python linting and formatting with a 120-char line length.
 
 ---
@@ -144,7 +145,6 @@ The DLRM (Deep Learning Recommendation Model) is built from scratch in PyTorch. 
 | Technology | Why |
 |---|---|
 | **PyTorch** | Full control over the DLRM architecture — custom forward pass, manual embedding tables, easy to extend |
-| **PyTorch Lightning** | Handles the training loop boilerplate — checkpointing, logging, GPU/CPU switching, validation splits |
 | **FastAPI** | Async by default, automatic OpenAPI docs, Pydantic validation on every request, and it's fast |
 | **httpx** | Async HTTP client for non-blocking TMDB API calls inside async FastAPI endpoints |
 | **uv** | 10-100x faster than pip for dependency resolution and installs |
@@ -152,6 +152,8 @@ The DLRM (Deep Learning Recommendation Model) is built from scratch in PyTorch. 
 | **Docker** | Consistent environment from dev to production, with multi-stage builds and health checks |
 | **Ruff** | Linting + formatting in one tool, written in Rust, runs in milliseconds |
 | **pytest** | Test framework with fixtures, parametrize, and async support for testing FastAPI endpoints |
+| **Faiss** | Approximate nearest-neighbor search for fast candidate retrieval in the two-stage pipeline |
+| **W&B** | Experiment tracking — logs training curves, hyperparameters, and evaluation metrics |
 | **Render** | Simple container deployment with auto-deploy from GitHub pushes |
 
 ---
@@ -189,28 +191,26 @@ See [EVALUATION.md](EVALUATION.md) for full ablation studies, failure analysis, 
 | 6 | `item_popularity_rank` | Item | Rank-ordered popularity, normalised to [0, 1] (1.0 = most popular) |
 | 7 | `user_item_deviation` | Interaction | `user_mean - item_mean`, shifted from [-1, 1] to [0, 1] |
 
-### Offline Evaluation Metrics
-
-> **Note:** The model needs retraining with the current 8-feature architecture. Metrics below will be populated after retraining.
+### Offline Evaluation Metrics (DLRM)
 
 | Metric | Value |
 |--------|-------|
-| NDCG@10 | Pending retraining with 8-feature architecture |
-| Precision@10 | Pending retraining with 8-feature architecture |
-| Recall@10 | Pending retraining with 8-feature architecture |
-| HitRate@10 | Pending retraining with 8-feature architecture |
-| AUC | Pending retraining with 8-feature architecture |
+| NDCG@10 | 0.6558 |
+| Precision@10 | 0.5731 |
+| Recall@10 | 0.3793 |
+| HitRate@10 | 0.9894 |
+| AUC | 0.5481 |
+
+> Evaluated on 283 held-out users, 20K test ratings. Train time: ~13s. Inference latency: ~0.13ms/user.
 
 ### Classical Baselines Comparison
 
 | Model | Approach | NDCG@10 | Prec@10 | Hit@10 |
 |-------|----------|---------|---------|--------|
-| DLRM | Learned user/item embeddings (128-dim) + 3-layer MLP | Pending | Pending | Pending |
-| XGBoost | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 hand-crafted features | Pending | Pending | Pending |
-| LightGBM | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 hand-crafted features | Pending | Pending | Pending |
-| LogReg | StandardScaler → Logistic Regression (C=1.0, lbfgs) on 8 hand-crafted features | Pending | Pending | Pending |
-| Most Popular | Rank by training-set popularity count (non-personalized) | Pending | Pending | Pending |
-| Random | Uniformly random scores (lower bound) | Pending | Pending | Pending |
+| **LogReg** | StandardScaler → Logistic Regression (C=1.0, lbfgs) on 8 features | **0.8023** | **0.6880** | **1.0000** |
+| XGBoost | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 features | 0.7836 | 0.6707 | 1.0000 |
+| LightGBM | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 features | 0.7820 | 0.6661 | 0.9965 |
+| DLRM | Learned user/item embeddings (128-dim) + 3-layer MLP | 0.6558 | 0.5731 | 0.9894 |
 
 ### Serving Architecture
 
@@ -293,7 +293,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8000
 ```bash
 curl -X POST http://localhost:8000/api/v1/predict \
   -H "Content-Type: application/json" \
-  -d '{"continuous_features": [0.5, 0.8], "categorical_features": [1, 2]}'
+  -d '{"continuous_features": [0.76, 0.5, 0.3, 0.4, 0.72, 0.6, 0.8, 0.52], "categorical_features": [1, 2]}'
 ```
 
 Or visit `http://localhost:8000/docs` for the interactive Swagger UI.
@@ -344,11 +344,11 @@ Returns details about the loaded DLRM model.
 ```json
 {
   "architecture": "DLRM (Deep Learning Recommendation Model)",
-  "num_parameters": 42817,
+  "num_parameters": 363905,
   "device": "cpu",
-  "num_continuous_features": 2,
+  "num_continuous_features": 8,
   "num_categorical_features": 2,
-  "mlp_layers": [64, 32, 16]
+  "mlp_layers": [384, 64, 32]
 }
 ```
 
@@ -360,7 +360,7 @@ The main endpoint. Send user preferences, get back 5 movie recommendations.
 
 ```json
 {
-  "continuous_features": [0.5, 0.8],
+  "continuous_features": [0.76, 0.5, 0.3, 0.4, 0.72, 0.6, 0.8, 0.52],
   "categorical_features": [1, 2]
 }
 ```
@@ -449,7 +449,7 @@ Legacy endpoint. Delegates to `/api/v1/predict` — same request format, same re
 
 ## Training the Model
 
-The training pipeline uses PyTorch Lightning, which handles checkpointing, logging, and hardware switching automatically.
+The training pipeline uses PyTorch with early stopping, learning rate scheduling, and W&B logging.
 
 ```bash
 uv run python scripts/train.py
@@ -470,7 +470,7 @@ All hyperparameters live in `configs/config.yaml`:
 |---|---|---|
 | `num_features` | `10` | Number of continuous input features |
 | `embedding_sizes` | `[10, 10, 10, 10, 10]` | Vocabulary size for each categorical embedding table |
-| `mlp_layers` | `[64, 32, 16]` | Hidden layer dimensions for the interaction MLP |
+| `mlp_layers` | `[384, 64, 32]` | Hidden layer dimensions for the interaction MLP |
 | `learning_rate` | `0.001` | Adam optimizer learning rate |
 | `epochs` | `5` | Number of training epochs |
 | `batch_size` | `32` | Samples per training batch |
@@ -522,13 +522,13 @@ RecommenderSystem/
 │   ├── __init__.py
 │   └── dlrm.py                # DLRM model — embeddings, dense layers, MLP, forward pass
 ├── scripts/
-│   ├── train.py               # PyTorch Lightning training loop with checkpointing
+│   ├── train.py               # Training loop with early stopping and W&B logging
 │   └── inference.py           # Standalone inference script for testing the model locally
 ├── configs/
 │   └── config.yaml            # Hyperparameters — features, layers, learning rate, epochs
 ├── tests/
 │   ├── __init__.py
-│   └── test_model.py          # 16+ tests — model unit tests, API integration, error handling
+│   └── test_model.py          # Model unit tests, API integration, error handling
 ├── data/
 │   └── netflix_titles.csv     # Dataset for experimentation
 ├── docker/
