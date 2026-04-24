@@ -156,6 +156,86 @@ The DLRM (Deep Learning Recommendation Model) is built from scratch in PyTorch. 
 
 ---
 
+## Benchmarks & Results
+
+### Model Architecture
+
+| Parameter | Value |
+|-----------|-------|
+| Dataset | MovieLens 100K (100,000 ratings, 943 users, 1,682 items) |
+| Embeddings | `[943, 1682]` x 128-dim (user, item) |
+| Continuous features | 8 dense features → Linear(8, 128) |
+| MLP | `[384 → 64 → 32]` with ReLU + Dropout(0.2) between layers |
+| Output | Linear(32, 1) → Sigmoid |
+| Loss | BCELoss (binary: rating >= 4 is positive) |
+| Optimizer | Adam (lr=0.001, weight_decay=1e-5) |
+| Scheduler | ReduceLROnPlateau (patience=3, factor=0.5) |
+| Regularization | Dropout 0.2, early stopping (patience=5) |
+| Training | 20 epochs max, batch_size=256 |
+| Parameters | ~363K total (~93% embeddings, ~7% MLP + dense layers) |
+
+### Input Features (8 total)
+
+| # | Feature | Source | Description |
+|---|---------|--------|-------------|
+| 0 | `user_mean_rating` | User | Average rating the user gave, normalised by max rating (5.0) |
+| 1 | `user_rating_count` | User | Number of ratings by user, normalised by max count in training set |
+| 2 | `user_rating_var` | User | Variance of user's ratings, normalised by max possible variance (4.0) |
+| 3 | `user_days_active` | User | Days between first and last rating, normalised |
+| 4 | `item_mean_rating` | Item | Average rating the item received, normalised |
+| 5 | `item_rating_count` | Item | Number of ratings for item, normalised |
+| 6 | `item_popularity_rank` | Item | Rank-ordered popularity, normalised to [0, 1] (1.0 = most popular) |
+| 7 | `user_item_deviation` | Interaction | `user_mean - item_mean`, shifted from [-1, 1] to [0, 1] |
+
+### Offline Evaluation Metrics
+
+> **Note:** The model needs retraining with the current 8-feature architecture. Metrics below will be populated after retraining.
+
+| Metric | Value |
+|--------|-------|
+| NDCG@10 | Pending retraining with 8-feature architecture |
+| Precision@10 | Pending retraining with 8-feature architecture |
+| Recall@10 | Pending retraining with 8-feature architecture |
+| HitRate@10 | Pending retraining with 8-feature architecture |
+| AUC | Pending retraining with 8-feature architecture |
+
+### Classical Baselines Comparison
+
+| Model | Approach | NDCG@10 | Prec@10 | Hit@10 |
+|-------|----------|---------|---------|--------|
+| DLRM | Learned user/item embeddings (128-dim) + 3-layer MLP | Pending | Pending | Pending |
+| XGBoost | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 hand-crafted features | Pending | Pending | Pending |
+| LightGBM | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 hand-crafted features | Pending | Pending | Pending |
+| LogReg | StandardScaler → Logistic Regression (C=1.0, lbfgs) on 8 hand-crafted features | Pending | Pending | Pending |
+| Most Popular | Rank by training-set popularity count (non-personalized) | Pending | Pending | Pending |
+| Random | Uniformly random scores (lower bound) | Pending | Pending | Pending |
+
+### Serving Architecture
+
+| Endpoint | Strategy | Description |
+|----------|----------|-------------|
+| `/recommend/{user_id}` | Brute-force | Scores all 1,682 items in a single forward pass, returns top-K |
+| `/recommend_v2/{user_id}` | Two-stage (ANN + rerank) | Faiss ANN retrieves top-100 candidates, DLRM reranks to top-K |
+| Cold-start | Popularity fallback | Unknown users receive popularity-ranked recommendations |
+
+### Two-Stage Retrieval Pipeline
+
+```
+Stage 1: Candidate Generation (~1ms)          Stage 2: Reranking
+┌──────────────────────────────┐       ┌─────────────────────────────┐
+│  User embedding (128-dim)    │       │  Full DLRM forward pass     │
+│         ↓                    │       │  on 100 candidates          │
+│  Faiss IndexFlatIP (cosine)  │──────►│  8 features + embeddings    │
+│  1,682 items → top 100       │       │  → top-K ranked results     │
+└──────────────────────────────┘       └─────────────────────────────┘
+```
+
+- **Stage 1** uses Faiss inner-product search over normalised item embeddings to retrieve ~100 candidates in ~1ms.
+- **Stage 2** runs the full DLRM (8 continuous features + user/item embeddings → MLP) on the candidate set and returns the final top-K.
+- Falls back to sklearn `NearestNeighbors` (brute cosine) if `faiss-cpu` is not installed.
+
+---
+
 ## Getting Started
 
 ### Prerequisites
