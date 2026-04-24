@@ -16,8 +16,11 @@ import wandb
 # Ensure project root is on path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from data.preprocessing import (
+    MAX_RATING_VAR,
     NUM_FEATURES,
     RATING_MAX,
+    compute_item_stats,
+    compute_max_user_days,
     compute_user_stats,
     load_movielens_data,
     prepare_splits,
@@ -35,6 +38,9 @@ MLP_LAYERS = [128, 64, 32]
 EPOCHS = 20
 BATCH_SIZE = 256
 LR = 0.001
+WEIGHT_DECAY = 1e-5
+DROPOUT = 0.2
+EARLY_STOP_PATIENCE = 5
 DEVICE = "cpu"
 K = 10  # top-K for ranking metrics
 
@@ -100,8 +106,8 @@ def evaluate(model, test_cont, test_cat, test_targets, user2idx, item2idx, test_
             if len(items_ratings) < 2:
                 continue
 
-            # Relevant items: rating >= 4 (i.e., normalised >= 0.8)
-            relevant = {iidx for iidx, r in items_ratings if r >= 0.8}
+            # Relevant items: binary label 1.0 (liked)
+            relevant = {iidx for iidx, r in items_ratings if r >= 1.0}
             if len(relevant) == 0:
                 continue
 
@@ -122,7 +128,7 @@ def evaluate(model, test_cont, test_cat, test_targets, user2idx, item2idx, test_
 
             # For AUC
             for idx_j, (iidx, r) in enumerate(items_ratings):
-                all_labels.append(1.0 if r >= 0.8 else 0.0)
+                all_labels.append(1.0 if r >= 1.0 else 0.0)
                 all_scores.append(float(scores[idx_j]))
 
             # Rank by score descending
@@ -180,6 +186,9 @@ def main():
             "epochs": EPOCHS,
             "batch_size": BATCH_SIZE,
             "learning_rate": LR,
+            "weight_decay": WEIGHT_DECAY,
+            "dropout": DROPOUT,
+            "early_stop_patience": EARLY_STOP_PATIENCE,
             "device": DEVICE,
             "top_k": K,
         },
@@ -202,6 +211,7 @@ def main():
         num_features=NUM_FEATURES,
         embedding_sizes=EMBEDDING_SIZES,
         mlp_layers=MLP_LAYERS,
+        dropout=DROPOUT,
     )
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -217,7 +227,12 @@ def main():
     # Training
     print(f"\n[3/4] Training for {EPOCHS} epochs (batch_size={BATCH_SIZE}, lr={LR})...")
     criterion = nn.BCELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+    optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, factor=0.5)
+
+    best_loss = float("inf")
+    best_state = None
+    epochs_no_improve = 0
 
     train_start = time.time()
     for epoch in range(1, EPOCHS + 1):
@@ -233,25 +248,79 @@ def main():
             epoch_loss += loss.item()
             n_batches += 1
         avg_loss = epoch_loss / n_batches
-        wandb.log({"train_loss": avg_loss, "epoch": epoch})
-        print(f"  Epoch {epoch:2d}/{EPOCHS} — train loss: {avg_loss:.6f}")
+
+        # Learning rate scheduling
+        scheduler.step(avg_loss)
+        current_lr = optimizer.param_groups[0]["lr"]
+
+        # Early stopping check
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+            best_state = {k: v.clone() for k, v in model.state_dict().items()}
+            epochs_no_improve = 0
+        else:
+            epochs_no_improve += 1
+
+        wandb.log({
+            "train_loss": avg_loss,
+            "epoch": epoch,
+            "learning_rate": current_lr,
+            "epochs_no_improve": epochs_no_improve,
+        })
+        print(f"  Epoch {epoch:2d}/{EPOCHS} — train loss: {avg_loss:.6f}  lr: {current_lr:.6f}  no_improve: {epochs_no_improve}")
+
+        if epochs_no_improve >= EARLY_STOP_PATIENCE:
+            print(f"  Early stopping triggered after {epoch} epochs (no improvement for {EARLY_STOP_PATIENCE} epochs)")
+            wandb.log({"early_stopped_epoch": epoch})
+            break
+
     train_time = time.time() - train_start
     print(f"  Training completed in {train_time:.1f}s")
 
-    # Save model
+    # Restore best model weights
+    if best_state is not None:
+        model.load_state_dict(best_state)
+        print("  Restored best model weights")
+
+    # Save best model
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
     print(f"  Model saved to {MODEL_SAVE_PATH}")
 
     # Save serving context for the recommendation API
     idx2item = {v: k for k, v in item2idx.items()}
-    user_ratings_serve, max_count_serve = compute_user_stats(raw[:int(len(raw) * 0.8)])
+    train_raw_serve = raw[:int(len(raw) * 0.8)]
+    user_ratings_serve, max_count_serve, user_timestamps_serve = compute_user_stats(train_raw_serve)
+    item_ratings_serve, item_max_count_serve, item_popularity_rank_serve = compute_item_stats(train_raw_serve)
+    max_user_days_serve = compute_max_user_days(user_timestamps_serve)
+
+    # Pre-compute per-user features (4 values: mean, count, var, days_active)
     user_features = {}
     for uid, uidx in user2idx.items():
         uratings = user_ratings_serve.get(uid, [3])
-        user_features[uidx] = [np.mean(uratings) / RATING_MAX, len(uratings) / max_count_serve]
+        user_mean = np.mean(uratings) / RATING_MAX
+        user_count = len(uratings) / max_count_serve
+        user_var = np.var(uratings) / MAX_RATING_VAR if len(uratings) > 1 else 0.0
+        utimes = user_timestamps_serve.get(uid, [])
+        if len(utimes) > 1:
+            days = (max(utimes) - min(utimes)) / 86400.0
+            user_days = days / max_user_days_serve if max_user_days_serve > 0 else 0.0
+        else:
+            user_days = 0.0
+        user_features[uidx] = [user_mean, user_count, user_var, user_days]
+
+    # Pre-compute per-item features (3 values: mean, count, popularity_rank)
+    item_features = {}
+    for iid, iidx in item2idx.items():
+        iratings = item_ratings_serve.get(iid, [3])
+        item_mean = np.mean(iratings) / RATING_MAX
+        item_count = len(iratings) / item_max_count_serve
+        item_pop = item_popularity_rank_serve.get(iid, 0.0)
+        item_features[iidx] = [item_mean, item_count, item_pop]
+
     serving_ctx = {
         "user2idx": user2idx, "item2idx": item2idx, "idx2item": idx2item,
-        "user_features": user_features, "max_count": max_count_serve,
+        "user_features": user_features, "item_features": item_features,
+        "max_count": max_count_serve,
     }
     ctx_path = os.path.join(os.path.dirname(MODEL_SAVE_PATH), "serving_context.pkl")
     with open(ctx_path, "wb") as f:

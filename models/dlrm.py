@@ -25,9 +25,10 @@ class DLRMModel(nn.Module):
         num_features: Number of continuous (dense) input features.
         embedding_sizes: List of vocabulary sizes for each categorical feature.
         mlp_layers: List of hidden-layer dimensions for the interaction MLP.
+        dropout: Dropout probability applied between MLP layers (default 0.2).
     """
 
-    def __init__(self, num_features: int, embedding_sizes: list[int], mlp_layers: list[int]):
+    def __init__(self, num_features: int, embedding_sizes: list[int], mlp_layers: list[int], dropout: float = 0.2):
         super().__init__()
 
         self.continuous_layer = nn.Linear(num_features, mlp_layers[0])
@@ -39,10 +40,11 @@ class DLRMModel(nn.Module):
         total_embedding_size = sum(emb.embedding_dim for emb in self.embeddings)
         mlp_input_dim = self.continuous_layer.out_features + total_embedding_size
 
-        layers: list[nn.Module] = [nn.Linear(mlp_input_dim, mlp_layers[1]), nn.ReLU()]
+        layers: list[nn.Module] = [nn.Linear(mlp_input_dim, mlp_layers[1]), nn.ReLU(), nn.Dropout(dropout)]
         for i in range(1, len(mlp_layers) - 1):
             layers.append(nn.Linear(mlp_layers[i], mlp_layers[i + 1]))
             layers.append(nn.ReLU())
+            layers.append(nn.Dropout(dropout))
 
         self.mlp = nn.Sequential(*layers)
         self.output_layer = nn.Linear(mlp_layers[-1], 1)

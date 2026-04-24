@@ -23,6 +23,7 @@ def dlrm_model():
         num_features=10,
         embedding_sizes=[10, 10, 10, 10, 10],
         mlp_layers=[64, 32, 16],
+        dropout=0.2,
     )
 
 
@@ -142,7 +143,7 @@ class TestModelInfoEndpoint:
 class TestPredictEndpoint:
     def test_predict_endpoint(self, test_client):
         payload = {
-            "continuous_features": [0.5, 0.8],
+            "continuous_features": [0.5, 0.8, 0.1, 0.3, 0.6, 0.4, 0.7, 0.5],
             "categorical_features": [1, 2],
         }
         with patch("api.app.fetch_real_movies", new_callable=AsyncMock) as mock_fetch:
@@ -168,7 +169,7 @@ class TestPredictEndpoint:
     def test_predict_legacy_endpoint(self, test_client):
         """Legacy /predict/ endpoint should still work."""
         payload = {
-            "continuous_features": [0.5, 0.8],
+            "continuous_features": [0.5, 0.8, 0.1, 0.3, 0.6, 0.4, 0.7, 0.5],
             "categorical_features": [1, 2],
         }
         with patch("api.app.fetch_real_movies", new_callable=AsyncMock) as mock_fetch:
@@ -190,7 +191,7 @@ class TestPredictEndpoint:
 
     def test_predict_bad_categorical_count(self, test_client):
         payload = {
-            "continuous_features": [0.5, 0.8],
+            "continuous_features": [0.5, 0.8, 0.1, 0.3, 0.6, 0.4, 0.7, 0.5],
             "categorical_features": [1],  # too few
         }
         response = test_client.post("/api/v1/predict", json=payload)
