@@ -158,6 +158,8 @@ The DLRM (Deep Learning Recommendation Model) is built from scratch in PyTorch. 
 
 ## Benchmarks & Results
 
+See [EVALUATION.md](EVALUATION.md) for full ablation studies, failure analysis, and reproduction instructions.
+
 ### Model Architecture
 
 | Parameter | Value |
