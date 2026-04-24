@@ -1,11 +1,18 @@
-"""Drift detection stub/proof-of-concept for the DLRM recommender.
+"""Drift detection for the DLRM recommender.
 
-This script demonstrates how distribution drift in model predictions
-could be detected in a production setting. It compares the distribution
-of prediction scores on the training set vs a simulated "new" batch
-using statistical tests.
+Compares prediction-score distributions between training and test splits
+using the Kolmogorov-Smirnov test and KL divergence.  Outputs structured
+JSON results and returns a non-zero exit code when drift is detected, so
+CI pipelines can gate on it.
+
+Usage:
+    python scripts/drift_detection.py
+    python scripts/drift_detection.py --output drift_report.json
+    python scripts/drift_detection.py --threshold-ks 0.15 --threshold-kl 0.1
 """
 
+import argparse
+import json
 import os
 import sys
 
@@ -17,7 +24,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from models.dlrm import DLRMModel
 
 # ---------------------------------------------------------------------------
-# Config
+# Default thresholds — override via CLI flags
+# ---------------------------------------------------------------------------
+KS_THRESHOLD = 0.1
+KL_THRESHOLD = 0.05
+
+# ---------------------------------------------------------------------------
+# Paths
 # ---------------------------------------------------------------------------
 DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ml-100k", "u.data")
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "trained_model_movielens.pth")
@@ -27,7 +40,12 @@ EMBEDDING_SIZES = [943, 1682]
 MLP_LAYERS = [128, 64, 32]
 
 
+# ---------------------------------------------------------------------------
+# Data helpers
+# ---------------------------------------------------------------------------
+
 def load_and_split():
+    """Load MovieLens 100k data, split 80/20 by timestamp, and featurise."""
     raw = np.loadtxt(DATA_PATH, dtype=np.int64)
     sorted_idx = np.argsort(raw[:, 3])
     raw = raw[sorted_idx]
@@ -41,7 +59,7 @@ def load_and_split():
     user2idx = {uid: i for i, uid in enumerate(all_users)}
     item2idx = {iid: i for i, iid in enumerate(all_items)}
 
-    user_ratings = {}
+    user_ratings: dict[int, list[int]] = {}
     for row in train_raw:
         uid = row[0]
         user_ratings.setdefault(uid, []).append(row[2])
@@ -65,14 +83,18 @@ def load_and_split():
     train_cont, train_cat, train_targets = make_features(train_raw)
     test_cont, test_cat, test_targets = make_features(test_raw)
 
-    return (train_raw, test_raw,
-            train_cont, train_cat, train_targets,
-            test_cont, test_cat, test_targets,
-            user2idx, item2idx)
+    return (
+        train_cont, train_cat, train_targets,
+        test_cont, test_cat, test_targets,
+    )
 
+
+# ---------------------------------------------------------------------------
+# Prediction & metrics
+# ---------------------------------------------------------------------------
 
 def get_prediction_scores(model, cont, cat, batch_size=1024):
-    """Get model prediction scores for a dataset."""
+    """Run model inference in batches and return a 1-D numpy array of scores."""
     model.eval()
     all_scores = []
     n = len(cont)
@@ -89,111 +111,131 @@ def get_prediction_scores(model, cont, cat, batch_size=1024):
 
 
 def kl_divergence(p, q, n_bins=50):
-    """Compute KL divergence between two distributions using histograms."""
+    """Compute KL divergence between two distributions via histograms."""
     bin_edges = np.linspace(0, 1, n_bins + 1)
     p_hist, _ = np.histogram(p, bins=bin_edges, density=True)
     q_hist, _ = np.histogram(q, bins=bin_edges, density=True)
 
-    # Add small epsilon to avoid log(0)
     eps = 1e-10
     p_hist = p_hist + eps
     q_hist = q_hist + eps
-
-    # Normalize to proper distributions
     p_hist = p_hist / p_hist.sum()
     q_hist = q_hist / q_hist.sum()
 
-    return np.sum(p_hist * np.log(p_hist / q_hist))
+    return float(np.sum(p_hist * np.log(p_hist / q_hist)))
 
 
-def main():
-    print("=" * 60)
-    print("DRIFT DETECTION — Proof of Concept")
-    print("=" * 60)
+def build_report(train_scores, test_scores, ks_threshold, kl_threshold):
+    """Return a structured dict with per-metric pass/fail results."""
+    ks_stat, ks_pval = stats.ks_2samp(train_scores, test_scores)
+    kl_div = kl_divergence(train_scores, test_scores)
 
-    print("\n[1] Loading data and model...")
-    (train_raw, test_raw,
-     train_cont, train_cat, train_targets,
-     test_cont, test_cat, test_targets,
-     user2idx, item2idx) = load_and_split()
+    ks_pass = float(ks_stat) <= ks_threshold
+    kl_pass = float(kl_div) <= kl_threshold
+    overall_pass = ks_pass and kl_pass
 
-    model = DLRMModel(num_features=NUM_FEATURES, embedding_sizes=EMBEDDING_SIZES, mlp_layers=MLP_LAYERS)
-    model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu", weights_only=True))
+    return {
+        "overall": "pass" if overall_pass else "fail",
+        "thresholds": {
+            "ks": ks_threshold,
+            "kl": kl_threshold,
+        },
+        "metrics": {
+            "ks_statistic": {
+                "value": round(float(ks_stat), 6),
+                "p_value": round(float(ks_pval), 6),
+                "threshold": ks_threshold,
+                "pass": ks_pass,
+            },
+            "kl_divergence": {
+                "value": round(float(kl_div), 6),
+                "threshold": kl_threshold,
+                "pass": kl_pass,
+            },
+        },
+        "summary": {
+            "train_mean": round(float(np.mean(train_scores)), 6),
+            "train_std": round(float(np.std(train_scores)), 6),
+            "test_mean": round(float(np.mean(test_scores)), 6),
+            "test_std": round(float(np.std(test_scores)), 6),
+            "train_n": len(train_scores),
+            "test_n": len(test_scores),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Detect prediction-distribution drift for the DLRM model."
+    )
+    parser.add_argument(
+        "--output", "-o",
+        type=str,
+        default=None,
+        help="Path to write the JSON report (default: stdout only).",
+    )
+    parser.add_argument(
+        "--threshold-ks",
+        type=float,
+        default=KS_THRESHOLD,
+        help=f"KS-statistic threshold for drift (default: {KS_THRESHOLD}).",
+    )
+    parser.add_argument(
+        "--threshold-kl",
+        type=float,
+        default=KL_THRESHOLD,
+        help=f"KL-divergence threshold for drift (default: {KL_THRESHOLD}).",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+
+    # Load data
+    (
+        train_cont, train_cat, _train_targets,
+        test_cont, test_cat, _test_targets,
+    ) = load_and_split()
+
+    # Load model
+    model = DLRMModel(
+        num_features=NUM_FEATURES,
+        embedding_sizes=EMBEDDING_SIZES,
+        mlp_layers=MLP_LAYERS,
+    )
+    model.load_state_dict(
+        torch.load(MODEL_PATH, map_location="cpu", weights_only=True)
+    )
     model.eval()
-    print("  Model loaded.")
 
-    # -------------------------------------------------------------------
-    # Scenario A: Train vs Test (natural temporal drift)
-    # -------------------------------------------------------------------
-    print("\n[2] Computing prediction scores on train and test sets...")
+    # Score
     train_scores = get_prediction_scores(model, train_cont, train_cat)
     test_scores = get_prediction_scores(model, test_cont, test_cat)
 
-    print(f"  Train scores: mean={np.mean(train_scores):.4f}, "
-          f"std={np.std(train_scores):.4f}, "
-          f"min={np.min(train_scores):.4f}, max={np.max(train_scores):.4f}")
-    print(f"  Test scores:  mean={np.mean(test_scores):.4f}, "
-          f"std={np.std(test_scores):.4f}, "
-          f"min={np.min(test_scores):.4f}, max={np.max(test_scores):.4f}")
+    # Build report
+    report = build_report(
+        train_scores, test_scores,
+        ks_threshold=args.threshold_ks,
+        kl_threshold=args.threshold_kl,
+    )
 
-    # KS test
-    ks_stat, ks_pval = stats.ks_2samp(train_scores, test_scores)
-    print("\n  Kolmogorov-Smirnov test (train vs test):")
-    print(f"    KS statistic: {ks_stat:.4f}")
-    print(f"    p-value:      {ks_pval:.6f}")
+    # Output
+    report_json = json.dumps(report, indent=2)
+    print(report_json)
 
-    # KL divergence
-    kl_div = kl_divergence(train_scores, test_scores)
-    print(f"\n  KL divergence (train || test): {kl_div:.4f}")
+    if args.output:
+        with open(args.output, "w") as f:
+            f.write(report_json + "\n")
+        print(f"\nReport written to {args.output}")
 
-    if ks_pval < 0.05:
-        print("\n  >> DRIFT DETECTED: The prediction score distributions differ "
-              "significantly between train and test (p < 0.05).")
-        print("     This is expected with a temporal split — user behavior and ")
-        print("     item popularity shift over time.")
-    else:
-        print("\n  >> NO SIGNIFICANT DRIFT: Prediction distributions are similar "
-              "between train and test.")
-
-    # -------------------------------------------------------------------
-    # Scenario B: Test vs Simulated "corrupted" batch (synthetic drift)
-    # -------------------------------------------------------------------
-    print("\n" + "-" * 60)
-    print("[3] Simulating drift with a corrupted input batch...")
-
-    # Create a synthetic batch with perturbed continuous features
-    np.random.seed(42)
-    corrupted_cont = test_cont.copy()
-    # Add noise to simulate feature drift (e.g., data pipeline issue)
-    corrupted_cont += np.random.normal(0, 0.3, corrupted_cont.shape).astype(np.float32)
-    corrupted_cont = np.clip(corrupted_cont, 0, 1)
-
-    corrupted_scores = get_prediction_scores(model, corrupted_cont, test_cat)
-
-    print(f"  Corrupted scores: mean={np.mean(corrupted_scores):.4f}, "
-          f"std={np.std(corrupted_scores):.4f}, "
-          f"min={np.min(corrupted_scores):.4f}, max={np.max(corrupted_scores):.4f}")
-
-    ks_stat2, ks_pval2 = stats.ks_2samp(test_scores, corrupted_scores)
-    kl_div2 = kl_divergence(test_scores, corrupted_scores)
-
-    print("\n  Kolmogorov-Smirnov test (test vs corrupted):")
-    print(f"    KS statistic: {ks_stat2:.4f}")
-    print(f"    p-value:      {ks_pval2:.6f}")
-    print(f"\n  KL divergence (test || corrupted): {kl_div2:.4f}")
-
-    if ks_pval2 < 0.05:
-        print("\n  >> DRIFT DETECTED: The corrupted batch shows significantly "
-              "different prediction distributions.")
-        print("     In production, this would trigger an alert for investigation.")
-    else:
-        print("\n  >> NO SIGNIFICANT DRIFT detected with the corrupted batch.")
-
-    # -------------------------------------------------------------------
-    # Summary
-    # -------------------------------------------------------------------
-    print("\n" + "=" * 60)
+    # Exit code: 0 = no drift, 1 = drift detected
+    return 0 if report["overall"] == "pass" else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
