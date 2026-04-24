@@ -164,7 +164,7 @@ def main():
         for uidx, items_ratings in user_test.items():
             if len(items_ratings) < 2:
                 continue
-            relevant = {iidx for iidx, r in items_ratings if r >= 0.8}
+            relevant = {iidx for iidx, r in items_ratings if r >= 1.0}
             if len(relevant) == 0:
                 continue
 

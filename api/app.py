@@ -9,6 +9,7 @@ import pickle
 import time
 
 import httpx
+import numpy as np
 import torch
 import yaml
 from dotenv import load_dotenv
@@ -18,6 +19,15 @@ from pydantic import BaseModel
 
 from data.preprocessing import load_item_metadata
 from models.dlrm import DLRMModel
+
+try:
+    import faiss
+
+    FAISS_AVAILABLE = True
+except ImportError:
+    from sklearn.neighbors import NearestNeighbors
+
+    FAISS_AVAILABLE = False
 
 # Configuration
 
@@ -211,6 +221,42 @@ if item_metadata:
         for iid in popular_ids
     ]
     logger.info("Cold-start fallback ready: %d popular items.", len(popular_items))
+
+# Faiss ANN index for two-stage retrieval
+
+faiss_index = None
+item_embeddings_np: np.ndarray | None = None
+
+if model_loaded and model is not None:
+    try:
+        item_emb_weights = model.embeddings[1].weight.detach().numpy().astype(np.float32)
+        # L2-normalise so inner-product search == cosine similarity
+        norms = np.linalg.norm(item_emb_weights, axis=1, keepdims=True)
+        norms = np.where(norms == 0, 1, norms)
+        item_embeddings_np = item_emb_weights / norms
+
+        if FAISS_AVAILABLE:
+            faiss_index = faiss.IndexFlatIP(item_embeddings_np.shape[1])
+            faiss_index.add(item_embeddings_np)
+            logger.info(
+                "Faiss ANN index built: %d items, dim=%d (using faiss-cpu).",
+                faiss_index.ntotal,
+                item_embeddings_np.shape[1],
+            )
+        else:
+            faiss_index = NearestNeighbors(
+                n_neighbors=100, metric="cosine", algorithm="brute"
+            )
+            faiss_index.fit(item_embeddings_np)
+            logger.info(
+                "Sklearn ANN index built: %d items, dim=%d (faiss-cpu unavailable, using sklearn fallback).",
+                item_embeddings_np.shape[0],
+                item_embeddings_np.shape[1],
+            )
+    except Exception as exc:
+        logger.error("Failed to build ANN index: %s", exc, exc_info=True)
+        faiss_index = None
+        item_embeddings_np = None
 
 # App
 
@@ -429,6 +475,23 @@ async def predict(request: PredictionRequest):
     return recommended_movies[:5]
 
 
+def _build_user_item_features(user_feats, item_indices, item_features, n_features):
+    """Build an (N, n_features) tensor combining user, item, and interaction features."""
+    n = len(item_indices)
+    cont_np = np.zeros((n, n_features), dtype=np.float32)
+    for j, item_idx in enumerate(item_indices):
+        cont_np[j, 0] = user_feats[0]  # user_mean_rating
+        cont_np[j, 1] = user_feats[1]  # user_rating_count
+        cont_np[j, 2] = user_feats[2]  # user_rating_var
+        cont_np[j, 3] = user_feats[3]  # user_days_active
+        ifeats = item_features.get(item_idx, [0.6, 0.0, 0.0])
+        cont_np[j, 4] = ifeats[0]  # item_mean_rating
+        cont_np[j, 5] = ifeats[1]  # item_rating_count
+        cont_np[j, 6] = ifeats[2]  # item_popularity_rank
+        cont_np[j, 7] = (user_feats[0] - ifeats[0] + 1.0) / 2.0  # user_item_deviation
+    return torch.tensor(cont_np, dtype=torch.float32)
+
+
 # Personalized recommendations
 
 
@@ -451,11 +514,11 @@ async def recommend(user_id: int, top_k: int = 10):
         raise HTTPException(status_code=404, detail=f"Unknown user: {user_id}")
 
     user_idx = serving_context["user2idx"][user_id]
-    user_cont = serving_context["user_features"][user_idx]
+    user_feats = serving_context["user_features"][user_idx]
+    item_features = serving_context.get("item_features", {})
     num_items = len(serving_context["item2idx"])
 
-    # Build batch: same user features for every item
-    cont = torch.tensor([user_cont] * num_items, dtype=torch.float32)
+    cont = _build_user_item_features(user_feats, list(range(num_items)), item_features, num_continuous_features)
     cat = torch.tensor([[user_idx, i] for i in range(num_items)], dtype=torch.int64)
 
     with torch.no_grad():
@@ -475,6 +538,113 @@ async def recommend(user_id: int, top_k: int = 10):
         })
 
     return {"user_id": user_id, "recommendations": results}
+
+
+# Two-stage retrieval: Faiss candidate generation + full-model reranking
+
+
+@app.get("/api/v1/recommend_v2/{user_id}")
+async def recommend_v2(user_id: int, top_k: int = 10, num_candidates: int = 100):
+    """Two-stage recommendation: ANN candidate generation then full DLRM reranking.
+
+    Stage 1 retrieves *num_candidates* items via approximate nearest-neighbour
+    search over item embeddings. Stage 2 scores those candidates through the
+    full DLRM model and returns the top *top_k*.
+    """
+    if not model_loaded or model is None:
+        raise HTTPException(status_code=503, detail="Model is not loaded.")
+
+    if serving_context is None:
+        raise HTTPException(status_code=503, detail="Serving context is not loaded.")
+
+    if faiss_index is None or item_embeddings_np is None:
+        raise HTTPException(status_code=503, detail="ANN index is not available.")
+
+    # Cold-start fallback (same behaviour as v1)
+    if user_id not in serving_context["user2idx"]:
+        if popular_items:
+            return {
+                "user_id": user_id,
+                "recommendations": popular_items[:top_k],
+                "note": "cold-start: popularity-based fallback",
+                "pipeline": "two-stage (skipped: cold-start)",
+            }
+        raise HTTPException(status_code=404, detail=f"Unknown user: {user_id}")
+
+    user_idx = serving_context["user2idx"][user_id]
+    user_feats = serving_context["user_features"][user_idx]
+    item_features = serving_context.get("item_features", {})
+    num_items = len(serving_context["item2idx"])
+
+    # Clamp num_candidates to the actual catalogue size
+    num_candidates = min(num_candidates, num_items)
+
+    # --- Stage 1: ANN candidate generation ---
+    stage1_start = time.perf_counter()
+
+    user_emb = model.embeddings[0](torch.tensor([user_idx])).detach().numpy().astype(np.float32)
+    user_emb_norm = user_emb / (np.linalg.norm(user_emb) or 1.0)
+
+    if FAISS_AVAILABLE:
+        _, candidate_indices = faiss_index.search(user_emb_norm, num_candidates)
+        candidate_indices = candidate_indices[0].tolist()
+    else:
+        distances, indices = faiss_index.kneighbors(user_emb_norm, n_neighbors=num_candidates)
+        candidate_indices = indices[0].tolist()
+
+    stage1_ms = (time.perf_counter() - stage1_start) * 1000
+
+    # --- Stage 2: Full DLRM reranking over candidates ---
+    stage2_start = time.perf_counter()
+
+    cont = _build_user_item_features(user_feats, candidate_indices, item_features, num_continuous_features)
+    cat = torch.tensor([[user_idx, idx] for idx in candidate_indices], dtype=torch.int64)
+
+    with torch.no_grad():
+        scores = model(cont, cat).squeeze()
+
+    # Handle single-candidate edge case (squeeze collapses to scalar)
+    if scores.dim() == 0:
+        scores = scores.unsqueeze(0)
+
+    top_within_candidates = scores.topk(min(top_k, len(candidate_indices))).indices.tolist()
+
+    stage2_ms = (time.perf_counter() - stage2_start) * 1000
+
+    # --- Brute-force timing for comparison ---
+    brute_start = time.perf_counter()
+    cont_all = _build_user_item_features(user_feats, list(range(num_items)), item_features, num_continuous_features)
+    cat_all = torch.tensor([[user_idx, i] for i in range(num_items)], dtype=torch.int64)
+    with torch.no_grad():
+        _ = model(cont_all, cat_all).squeeze()
+    brute_ms = (time.perf_counter() - brute_start) * 1000
+
+    results = []
+    for rank_idx in top_within_candidates:
+        item_idx = candidate_indices[rank_idx]
+        raw_item_id = int(serving_context["idx2item"][item_idx])
+        meta = item_metadata.get(raw_item_id, {"title": f"Item {raw_item_id}", "genres": []})
+        results.append({
+            "item_id": raw_item_id,
+            "score": round(scores[rank_idx].item(), 4),
+            "title": meta["title"],
+            "genres": meta["genres"],
+        })
+
+    return {
+        "user_id": user_id,
+        "recommendations": results,
+        "pipeline": "two-stage",
+        "num_candidates": num_candidates,
+        "latency_ms": {
+            "stage1_ann": round(stage1_ms, 2),
+            "stage2_rerank": round(stage2_ms, 2),
+            "total_two_stage": round(stage1_ms + stage2_ms, 2),
+            "brute_force_all_items": round(brute_ms, 2),
+            "speedup": round(brute_ms / max(stage1_ms + stage2_ms, 0.01), 2),
+        },
+        "ann_backend": "faiss-cpu" if FAISS_AVAILABLE else "sklearn-NearestNeighbors",
+    }
 
 
 # Keep old endpoint for backwards compatibility (redirects to versioned)
