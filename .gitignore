@@ -21,16 +21,21 @@ lightning_logs/
 wandb/
 
 # Model weights and serialized artifacts
-*.pth
 *.ckpt
 *.onnx
 *.onnx.data
-*.pkl
 
-# Data (ignore datasets but keep Python package files)
+# Keep trained model and serving context (needed for Render deploy)
+# trained_model_movielens.pth — tracked
+# serving_context.pkl — tracked
+
+# Data (ignore raw datasets but keep Python package + item metadata)
 data/*
 !data/__init__.py
 !data/preprocessing.py
+!data/ml-100k/
+data/ml-100k/*
+!data/ml-100k/u.item
 
 # HTML files
 *.html
