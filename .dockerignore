@@ -6,7 +6,7 @@ __pycache__/
 .gitignore
 .env
 lightning_logs/
-data/
+data/ml-100k/
 *.egg-info/
 dist/
 build/
