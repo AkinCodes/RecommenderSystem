@@ -35,7 +35,10 @@ KL_THRESHOLD = 0.05
 DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ml-100k", "u.data")
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "trained_model_movielens.pth")
 
-NUM_FEATURES = 2
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from data.preprocessing import NUM_FEATURES, load_movielens_data, prepare_splits  # noqa: E402
+
 EMBEDDING_SIZES = [943, 1682]
 MLP_LAYERS = [128, 64, 32]
 
@@ -45,43 +48,11 @@ MLP_LAYERS = [128, 64, 32]
 # ---------------------------------------------------------------------------
 
 def load_and_split():
-    """Load MovieLens 100k data, split 80/20 by timestamp, and featurise."""
-    raw = np.loadtxt(DATA_PATH, dtype=np.int64)
-    sorted_idx = np.argsort(raw[:, 3])
-    raw = raw[sorted_idx]
-
-    split = int(len(raw) * 0.8)
-    train_raw = raw[:split]
-    test_raw = raw[split:]
-
-    all_users = np.unique(raw[:, 0])
-    all_items = np.unique(raw[:, 1])
-    user2idx = {uid: i for i, uid in enumerate(all_users)}
-    item2idx = {iid: i for i, iid in enumerate(all_items)}
-
-    user_ratings: dict[int, list[int]] = {}
-    for row in train_raw:
-        uid = row[0]
-        user_ratings.setdefault(uid, []).append(row[2])
-
-    max_count = max(len(v) for v in user_ratings.values()) if user_ratings else 1
-
-    def make_features(data):
-        cont = np.zeros((len(data), NUM_FEATURES), dtype=np.float32)
-        cat = np.zeros((len(data), 2), dtype=np.int64)
-        targets = np.zeros(len(data), dtype=np.float32)
-        for i, row in enumerate(data):
-            uid, iid, rating, _ = row
-            cat[i, 0] = user2idx[uid]
-            cat[i, 1] = item2idx[iid]
-            targets[i] = rating / 5.0
-            uratings = user_ratings.get(uid, [3])
-            cont[i, 0] = np.mean(uratings) / 5.0
-            cont[i, 1] = len(uratings) / max_count
-        return cont, cat, targets
-
-    train_cont, train_cat, train_targets = make_features(train_raw)
-    test_cont, test_cat, test_targets = make_features(test_raw)
+    """Load MovieLens 100k data using the shared preprocessing module."""
+    raw = load_movielens_data(DATA_PATH)
+    (train_cont, train_cat, train_targets,
+     test_cont, test_cat, test_targets,
+     _user2idx, _item2idx, _test_raw) = prepare_splits(raw)
 
     return (
         train_cont, train_cat, train_targets,
