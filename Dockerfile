@@ -21,6 +21,9 @@ RUN uv pip install --system .
 # Now copy the rest of the code
 COPY . .
 
+# Ensure project root is on Python path so data/models/api are importable
+ENV PYTHONPATH=/app
+
 # Expose FastAPI port
 EXPOSE 8000
 
