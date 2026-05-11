@@ -25,9 +25,8 @@ wandb/
 *.onnx
 *.onnx.data
 
-# Keep trained model and serving context (needed for Render deploy)
-# trained_model_movielens.pth — tracked
-# serving_context.pkl — tracked
+# Note: trained_model_movielens.pth and serving_context.pkl
+# are generated artifacts — excluded via *.pth and *.pkl above
 
 # Data (ignore raw datasets but keep Python package + item metadata)
 data/*
@@ -60,5 +59,6 @@ uv.lock
 
 # Learning system (personal, not project code)
 docs/learning_roadmap/
-trained_model.pth
+*.pth
 *.pkl
+*.log
