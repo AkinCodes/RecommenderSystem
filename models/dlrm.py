@@ -1,9 +1,4 @@
-"""Deep Learning Recommendation Model (DLRM).
-
-A PyTorch implementation of the DLRM architecture that combines continuous
-and categorical features through embeddings and an MLP to produce a
-recommendation score between 0 and 1.
-"""
+"""Deep Learning Recommendation Model (DLRM)."""
 
 import logging
 import os
@@ -11,7 +6,6 @@ import os
 import torch
 import torch.nn as nn
 
-# Force Torch to use CPU mode
 torch.set_num_threads(1)
 os.environ["TORCHREC_DISABLE_FBGEMM"] = "1"
 
@@ -19,14 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class DLRMModel(nn.Module):
-    """Deep Learning Recommendation Model.
-
-    Args:
-        num_features: Number of continuous (dense) input features.
-        embedding_sizes: List of vocabulary sizes for each categorical feature.
-        mlp_layers: List of hidden-layer dimensions for the interaction MLP.
-        dropout: Dropout probability applied between MLP layers (default 0.2).
-    """
+    """Deep Learning Recommendation Model."""
 
     def __init__(self, num_features: int, embedding_sizes: list[int], mlp_layers: list[int], dropout: float = 0.2):
         super().__init__()
@@ -51,19 +38,6 @@ class DLRMModel(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, continuous_features: torch.Tensor, categorical_features: torch.Tensor) -> torch.Tensor:
-        """Run a forward pass through the DLRM.
-
-        Args:
-            continuous_features: Float tensor of shape ``(batch, num_features)``.
-            categorical_features: Long tensor of shape ``(batch, num_categorical)``.
-
-        Returns:
-            Tensor of shape ``(batch, 1)`` with values in ``[0, 1]``.
-
-        Raises:
-            ValueError: If inputs are ``None`` or if the number of categorical
-                features exceeds the number of embedding tables.
-        """
         if continuous_features is None or categorical_features is None:
             raise ValueError("Forward pass inputs cannot be None.")
 

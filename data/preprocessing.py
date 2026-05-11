@@ -1,8 +1,4 @@
-"""Shared preprocessing functions for MovieLens data.
-
-Used by both training (scripts/train_movielens.py) and serving (api/app.py)
-to guarantee identical feature engineering and prevent train/serve skew.
-"""
+"""Shared preprocessing functions for MovieLens data."""
 
 import logging
 import os
@@ -11,9 +7,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-NUM_FEATURES = 8  # user: mean_rating, rating_count, rating_var, days_active
-                   # item: mean_rating, rating_count, popularity_rank
-                   # interaction: user_item_deviation
+NUM_FEATURES = 8  # 4 user + 3 item + 1 interaction feature
 RATING_MAX = 5.0  # used to normalise continuous features (mean rating)
 LIKE_THRESHOLD = 4  # ratings >= 4 are "liked" (label 1.0), else 0.0
 MIN_RATINGS = 1000  # minimum number of ratings required
@@ -22,7 +16,7 @@ MAX_RATING_VAR = 4.0  # max possible variance for integer ratings in [1, 5]
 
 
 def validate_raw_data(raw: np.ndarray, min_ratings: int = MIN_RATINGS) -> None:
-    """Validate the raw ratings array. Raises ValueError on any issue."""
+    """Validate the raw ratings array; raises ValueError on any issue."""
     if raw.size == 0:
         raise ValueError("Data is empty — received a 0-length array.")
 
@@ -32,8 +26,6 @@ def validate_raw_data(raw: np.ndarray, min_ratings: int = MIN_RATINGS) -> None:
             f"got shape {raw.shape}."
         )
 
-    # --- null / NaN check (int64 arrays can't hold NaN, but guard against
-    #     future dtype changes or masked arrays) ---
     if hasattr(raw, "mask") or np.isnan(raw.astype(float)).any():
         nan_rows = np.where(np.isnan(raw.astype(float)).any(axis=1))[0]
         raise ValueError(
@@ -41,7 +33,6 @@ def validate_raw_data(raw: np.ndarray, min_ratings: int = MIN_RATINGS) -> None:
             f"First offending row index: {nan_rows[0]}."
         )
 
-    # --- rating range ---
     ratings = raw[:, 2]
     out_of_range = (ratings < 1) | (ratings > 5)
     if out_of_range.any():
@@ -52,7 +43,6 @@ def validate_raw_data(raw: np.ndarray, min_ratings: int = MIN_RATINGS) -> None:
             f"Invalid values found: {bad_vals.tolist()}."
         )
 
-    # --- positive IDs ---
     user_ids = raw[:, 0]
     item_ids = raw[:, 1]
     if (user_ids <= 0).any():
@@ -62,14 +52,12 @@ def validate_raw_data(raw: np.ndarray, min_ratings: int = MIN_RATINGS) -> None:
         bad = np.unique(item_ids[item_ids <= 0])
         raise ValueError(f"Non-positive item IDs found: {bad.tolist()}.")
 
-    # --- minimum volume ---
     n = len(raw)
     if n < min_ratings:
         raise ValueError(
             f"Dataset has only {n} ratings, need at least {min_ratings}."
         )
 
-    # --- advisory warnings (don't block, just log) ---
     unique_users, user_counts = np.unique(user_ids, return_counts=True)
     sparse_users = unique_users[user_counts < MIN_INTERACTIONS_WARN]
     if len(sparse_users) > 0:
@@ -108,7 +96,7 @@ def build_id_mappings(raw: np.ndarray):
 
 
 def compute_user_stats(train_raw: np.ndarray):
-    """Compute per-user rating lists, max count, and timestamps from training data only."""
+    """Compute per-user rating lists, max count, and timestamps."""
     user_ratings = {}
     user_timestamps = {}
     for row in train_raw:
@@ -122,14 +110,7 @@ def compute_user_stats(train_raw: np.ndarray):
 
 
 def compute_item_stats(train_raw: np.ndarray):
-    """Compute per-item rating stats from training data only.
-
-    Returns:
-        item_ratings: dict mapping item_id -> list of ratings
-        item_max_count: max number of ratings any single item received
-        item_popularity_rank: dict mapping item_id -> normalised rank in [0, 1]
-            where 1.0 = most popular item
-    """
+    """Compute per-item rating stats and popularity ranks."""
     item_ratings = {}
     for row in train_raw:
         iid = row[1]
@@ -162,22 +143,7 @@ def compute_max_user_days(user_timestamps: dict) -> float:
 def make_features(data, user2idx, item2idx, user_ratings_dict, max_count,
                   user_timestamps, item_ratings_dict, item_max_count,
                   item_popularity_rank, max_user_days):
-    """Build continuous features, categorical indices, and binary labels.
-
-    Continuous features per sample (8 total):
-        0: user_mean_rating -- normalised mean rating for the user
-        1: user_rating_count -- normalised interaction count for the user
-        2: user_rating_var -- variance of user's ratings, normalised
-        3: user_days_active -- days between first and last rating, normalised
-        4: item_mean_rating -- average rating the item received, normalised
-        5: item_rating_count -- number of ratings the item received, normalised
-        6: item_popularity_rank -- rank-ordered popularity normalised to [0, 1]
-        7: user_item_deviation -- user_mean - item_mean (shifted to [0, 1])
-
-    Targets are binary labels: 1.0 if rating >= LIKE_THRESHOLD, else 0.0.
-
-    Returns (cont, cat, targets) numpy arrays.
-    """
+    """Build continuous features, categorical indices, and binary labels."""
     cont = np.zeros((len(data), NUM_FEATURES), dtype=np.float32)
     cat = np.zeros((len(data), 2), dtype=np.int64)
     targets = np.zeros(len(data), dtype=np.float32)
@@ -188,7 +154,6 @@ def make_features(data, user2idx, item2idx, user_ratings_dict, max_count,
         cat[i, 1] = item2idx[iid]
         targets[i] = 1.0 if rating >= LIKE_THRESHOLD else 0.0
 
-        # --- User features ---
         uratings = user_ratings_dict.get(uid, [3])
         user_mean = np.mean(uratings) / RATING_MAX
         cont[i, 0] = user_mean
@@ -202,14 +167,12 @@ def make_features(data, user2idx, item2idx, user_ratings_dict, max_count,
         else:
             cont[i, 3] = 0.0
 
-        # --- Item features ---
         iratings = item_ratings_dict.get(iid, [3])
         item_mean = np.mean(iratings) / RATING_MAX
         cont[i, 4] = item_mean
         cont[i, 5] = len(iratings) / item_max_count
         cont[i, 6] = item_popularity_rank.get(iid, 0.0)
 
-        # --- Interaction feature ---
         # user_mean - item_mean is in [-1, 1]; shift to [0, 1]
         cont[i, 7] = (user_mean - item_mean + 1.0) / 2.0
 
@@ -218,7 +181,7 @@ def make_features(data, user2idx, item2idx, user_ratings_dict, max_count,
 
 def validate_splits(train_raw: np.ndarray, test_raw: np.ndarray,
                     user2idx: dict, item2idx: dict) -> None:
-    """Validate train/test splits. Raises ValueError on issues."""
+    """Validate train/test splits; raises ValueError on issues."""
     if len(train_raw) <= len(test_raw):
         raise ValueError(
             f"Train set ({len(train_raw)}) should be larger than test set "
@@ -258,12 +221,7 @@ def validate_splits(train_raw: np.ndarray, test_raw: np.ndarray,
 
 
 def prepare_splits(raw: np.ndarray):
-    """Timestamp-based 80/20 split with feature engineering.
-
-    Returns (train_cont, train_cat, train_targets,
-             test_cont, test_cat, test_targets,
-             user2idx, item2idx, test_raw).
-    """
+    """Timestamp-based 80/20 split with feature engineering."""
     sorted_idx = np.argsort(raw[:, 3])
     raw = raw[sorted_idx]
 

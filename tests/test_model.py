@@ -5,20 +5,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import torch
 
-# Ensure the project root is on sys.path so imports work when running pytest
-# from the repository root.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from models.dlrm import DLRMModel
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture
 def dlrm_model():
-    """Return a small DLRM model suitable for unit tests."""
     return DLRMModel(
         num_features=10,
         embedding_sizes=[10, 10, 10, 10, 10],
@@ -29,7 +22,6 @@ def dlrm_model():
 
 @pytest.fixture
 def sample_inputs():
-    """Return a (continuous, categorical) tensor pair for testing."""
     continuous = torch.randn(1, 10)
     categorical = torch.randint(0, 5, (1, 5))
     return continuous, categorical
@@ -37,21 +29,12 @@ def sample_inputs():
 
 @pytest.fixture
 def test_client():
-    """Return a TestClient for the FastAPI app.
-
-    Imported lazily so model-loading side effects don't block other tests
-    if the trained_model.pth is missing.
-    """
+    # Lazy import to avoid model-loading side effects when .pth is missing
     from fastapi.testclient import TestClient
 
     from api.app import app
 
     return TestClient(app)
-
-
-# ---------------------------------------------------------------------------
-# Model tests
-# ---------------------------------------------------------------------------
 
 
 class TestDLRMModel:
@@ -86,28 +69,20 @@ class TestDLRMModel:
         assert output.shape == torch.Size([4, 1])
 
     def test_single_categorical_feature(self, dlrm_model):
-        """Model should handle fewer categorical features than embedding tables."""
         continuous = torch.randn(1, 10)
         categorical = torch.randint(0, 5, (1, 1))
         output = dlrm_model(continuous, categorical)
         assert output.shape == torch.Size([1, 1])
 
     def test_empty_batch_raises(self, dlrm_model):
-        """Zero-batch tensors should propagate gracefully (no crash)."""
         continuous = torch.randn(0, 10)
         categorical = torch.randint(0, 5, (0, 5))
         output = dlrm_model(continuous, categorical)
         assert output.shape == torch.Size([0, 1])
 
     def test_parameter_count_positive(self, dlrm_model):
-        """Model should have a non-trivial number of parameters."""
         total = sum(p.numel() for p in dlrm_model.parameters())
         assert total > 0
-
-
-# ---------------------------------------------------------------------------
-# API tests
-# ---------------------------------------------------------------------------
 
 
 class TestHealthEndpoints:
@@ -167,7 +142,6 @@ class TestPredictEndpoint:
         assert "title" in data[0]
 
     def test_predict_legacy_endpoint(self, test_client):
-        """Legacy /predict/ endpoint should still work."""
         payload = {
             "continuous_features": [0.5, 0.8, 0.1, 0.3, 0.6, 0.4, 0.7, 0.5],
             "categorical_features": [1, 2],
@@ -201,7 +175,6 @@ class TestPredictEndpoint:
         assert "error" in data
 
     def test_predict_empty_continuous(self, test_client):
-        """Empty continuous features should still be accepted by the endpoint."""
         payload = {
             "continuous_features": [],
             "categorical_features": [1, 2],
@@ -225,7 +198,6 @@ class TestPredictEndpoint:
         assert response.status_code in (200, 400, 422, 503)
 
     def test_predict_wrong_types_rejected(self, test_client):
-        """Sending strings instead of numbers should fail validation."""
         payload = {
             "continuous_features": ["not", "a", "number"],
             "categorical_features": [1, 2],
@@ -234,7 +206,6 @@ class TestPredictEndpoint:
         assert response.status_code == 422
 
     def test_predict_missing_fields(self, test_client):
-        """Omitting required fields should fail."""
         response = test_client.post("/api/v1/predict", json={})
         assert response.status_code == 422
 

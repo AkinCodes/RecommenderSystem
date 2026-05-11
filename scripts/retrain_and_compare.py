@@ -1,12 +1,4 @@
-"""Retrain DLRM with 8-feature architecture and compare against classical baselines.
-
-Trains the DLRM locally (no wandb), evaluates it alongside XGBoost, LightGBM,
-and Logistic Regression using ranking metrics, and outputs a markdown comparison
-table plus a JSON report.
-
-Usage:
-    python scripts/retrain_and_compare.py
-"""
+"""Retrain DLRM (no wandb) and compare against classical baselines."""
 
 import json
 import logging
@@ -21,9 +13,6 @@ import torch.nn as nn
 from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader, Dataset
 
-# ---------------------------------------------------------------------------
-# Path setup
-# ---------------------------------------------------------------------------
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, PROJECT_ROOT)
 
@@ -40,9 +29,6 @@ from data.preprocessing import (
 from models.classical import ClassicalRanker, FeatureBuilder
 from models.dlrm import DLRMModel
 
-# ---------------------------------------------------------------------------
-# Config (same hyperparameters as train_movielens.py)
-# ---------------------------------------------------------------------------
 DATA_PATH = os.path.join(PROJECT_ROOT, "data", "ml-100k", "u.data")
 MODEL_SAVE_PATH = os.path.join(PROJECT_ROOT, "trained_model_movielens.pth")
 REPORT_JSON_PATH = os.path.join(PROJECT_ROOT, "reports", "model_comparison.json")
@@ -68,9 +54,6 @@ np.random.seed(42)
 torch.manual_seed(42)
 
 
-# ---------------------------------------------------------------------------
-# Dataset
-# ---------------------------------------------------------------------------
 class MovieLensDataset(Dataset):
     def __init__(self, cont, cat, targets):
         self.cont = torch.tensor(cont, dtype=torch.float32)
@@ -84,9 +67,6 @@ class MovieLensDataset(Dataset):
         return self.cont[idx], self.cat[idx], self.targets[idx]
 
 
-# ---------------------------------------------------------------------------
-# Ranking metrics
-# ---------------------------------------------------------------------------
 def dcg(relevances, k):
     rel = np.array(relevances[:k], dtype=np.float64)
     if len(rel) == 0:
@@ -102,7 +82,6 @@ def ndcg_at_k(ranked_relevances, k):
 
 
 def compute_ranking_metrics(user_test, rank_fn, k=K):
-    """Compute NDCG@K, Precision@K, Recall@K, HitRate@K, and AUC."""
     ndcgs, precisions, recalls, hit_rates = [], [], [], []
     all_labels, all_scores = [], []
 
@@ -120,7 +99,6 @@ def compute_ranking_metrics(user_test, rank_fn, k=K):
         if scores.ndim == 0:
             scores = np.array([scores.item()])
 
-        # For AUC
         for idx_j, (iidx, r) in enumerate(items_ratings):
             all_labels.append(1.0 if r >= 1.0 else 0.0)
             all_scores.append(float(scores[idx_j]))
@@ -128,18 +106,12 @@ def compute_ranking_metrics(user_test, rank_fn, k=K):
         ranked_idx = np.argsort(-scores)
         top_k_items = [item_indices[j] for j in ranked_idx[:k]]
 
-        # NDCG
         ranked_rels = [1.0 if item_indices[j] in relevant else 0.0 for j in ranked_idx]
         ndcgs.append(ndcg_at_k(ranked_rels, k))
 
-        # Precision@K
         hits_in_k = sum(1 for it in top_k_items if it in relevant)
         precisions.append(hits_in_k / k)
-
-        # Recall@K
         recalls.append(hits_in_k / len(relevant) if relevant else 0.0)
-
-        # HitRate@K
         hit_rates.append(1.0 if hits_in_k > 0 else 0.0)
 
     auc = 0.0
@@ -157,12 +129,10 @@ def compute_ranking_metrics(user_test, rank_fn, k=K):
 
 
 def measure_inference_latency(rank_fn, user_test, n_runs=200):
-    """Measure average per-user inference time in milliseconds."""
     users = list(user_test.keys())[:n_runs]
     if not users:
         return 0.0
 
-    # Warmup
     for uidx in users[:10]:
         items = [ir[0] for ir in user_test[uidx]]
         rank_fn(uidx, items)
@@ -179,13 +149,9 @@ def measure_inference_latency(rank_fn, user_test, n_runs=200):
     return total_ms / count if count > 0 else 0.0
 
 
-# ---------------------------------------------------------------------------
-# DLRM Training
-# ---------------------------------------------------------------------------
 def train_dlrm(train_cont, train_cat, train_targets,
                test_cont, test_cat, test_targets,
                user2idx, item2idx, test_raw, raw):
-    """Train the DLRM model and return (model, metrics, train_time, param_count)."""
     print("\n" + "=" * 60)
     print("TRAINING DLRM (8-feature architecture, no wandb)")
     print("=" * 60)
@@ -250,16 +216,13 @@ def train_dlrm(train_cont, train_cat, train_targets,
     train_time = time.time() - train_start
     print(f"  Training completed in {train_time:.1f}s")
 
-    # Restore best weights
     if best_state is not None:
         model.load_state_dict(best_state)
         print("  Restored best model weights")
 
-    # Save model
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
     print(f"  Model saved to {MODEL_SAVE_PATH}")
 
-    # Save serving context
     idx2item = {v: k for k, v in item2idx.items()}
     sorted_idx = np.argsort(raw[:, 3])
     raw_sorted = raw[sorted_idx]
@@ -305,18 +268,12 @@ def train_dlrm(train_cont, train_cat, train_targets,
     return model, train_time, total_params
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 def main():
     print("=" * 70)
     print("RETRAIN & COMPARE -- DLRM vs Classical Baselines")
     print(f"NUM_FEATURES = {NUM_FEATURES}, targets = binary (BCELoss)")
     print("=" * 70)
 
-    # ------------------------------------------------------------------
-    # 1. Load data
-    # ------------------------------------------------------------------
     print("\n[1/5] Loading MovieLens 100K data...")
     raw = load_movielens_data(DATA_PATH)
     (train_cont, train_cat, train_targets,
@@ -333,7 +290,6 @@ def main():
     print(f"  Users: {len(user2idx)}, Items: {len(item2idx)}")
     print(f"  Label balance: {train_targets.mean():.1%} positive (rating >= 4)")
 
-    # Group test interactions by user
     user_test = {}
     for i in range(len(test_raw)):
         uid = test_raw[i, 0]
@@ -348,9 +304,6 @@ def main():
         if uidx not in user_cont_map:
             user_cont_map[uidx] = test_cont[i]
 
-    # ------------------------------------------------------------------
-    # 2. Train DLRM
-    # ------------------------------------------------------------------
     print("\n[2/5] Training DLRM...")
     model, dlrm_train_time, dlrm_param_count = train_dlrm(
         train_cont, train_cat, train_targets,
@@ -358,7 +311,6 @@ def main():
         user2idx, item2idx, test_raw, raw,
     )
 
-    # DLRM ranking function
     def dlrm_rank(uidx, item_indices):
         n = len(item_indices)
         cont_tensor = torch.tensor(
@@ -386,9 +338,6 @@ def main():
     print(f"  HR@10:      {dlrm_metrics['HitRate@10']:.4f}")
     print(f"  AUC:        {dlrm_metrics['AUC']:.4f}")
 
-    # ------------------------------------------------------------------
-    # 3. Train classical baselines
-    # ------------------------------------------------------------------
     print("\n[4/5] Training classical baselines...")
     fb = FeatureBuilder(train_raw, user2idx, item2idx)
     X_train, y_train = fb.build_matrix(train_raw)
@@ -398,7 +347,6 @@ def main():
 
     results = [("DLRM", dlrm_metrics)]
 
-    # --- XGBoost ---
     try:
         import xgboost as xgb
 
@@ -428,7 +376,6 @@ def main():
     except ImportError:
         print("  [SKIP] xgboost not installed")
 
-    # --- LightGBM ---
     try:
         import lightgbm as lgb
 
@@ -457,7 +404,6 @@ def main():
     except ImportError:
         print("  [SKIP] lightgbm not installed")
 
-    # --- Logistic Regression ---
     from sklearn.linear_model import LogisticRegression
     from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import StandardScaler
@@ -485,14 +431,10 @@ def main():
     print(f"  LogReg -- NDCG@10: {logreg_metrics['NDCG@10']:.4f}, "
           f"AUC: {logreg_metrics['AUC']:.4f}")
 
-    # ------------------------------------------------------------------
-    # 4. Print comparison table
-    # ------------------------------------------------------------------
     print("\n\n[5/5] Results")
     print("=" * 70)
     print()
 
-    # Markdown table
     header = "| Model | NDCG@10 | Prec@10 | Recall@10 | HR@10 | AUC | Train Time | Latency (ms) |"
     sep =    "|-------|---------|---------|-----------|-------|-----|------------|--------------|"
     print(header)
@@ -512,9 +454,6 @@ def main():
     print(f"Evaluated on {dlrm_metrics['num_eval_users']} users with top-{K} recommendations.")
     print()
 
-    # ------------------------------------------------------------------
-    # 5. Save JSON report
-    # ------------------------------------------------------------------
     report = {
         "dataset": "MovieLens-100K",
         "num_ratings": int(len(raw)),

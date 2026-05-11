@@ -1,12 +1,4 @@
-"""Classical ML baselines vs DLRM on MovieLens 100K.
-
-Trains XGBoost, LightGBM, and Logistic Regression classifiers with rich
-hand-crafted features, then evaluates all models (including the saved DLRM)
-using the same ranking metrics (NDCG@10, Precision@10, HitRate@10).
-
-Usage:
-    python scripts/classical_baselines.py
-"""
+"""Classical ML baselines vs DLRM on MovieLens 100K."""
 
 import logging
 import os
@@ -15,9 +7,6 @@ import time
 
 import numpy as np
 
-# ---------------------------------------------------------------------------
-# Path setup — ensure project root is importable
-# ---------------------------------------------------------------------------
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, PROJECT_ROOT)
 
@@ -28,9 +17,6 @@ DATA_PATH = os.path.join(PROJECT_ROOT, "data", "ml-100k", "u.data")
 from models.classical import ClassicalRanker, FeatureBuilder  # noqa: E402
 from scripts.baseline_comparison import compute_metrics  # noqa: E402
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
 MODEL_SAVE_PATH = os.path.join(PROJECT_ROOT, "trained_model_movielens.pth")
 REPORT_PATH = os.path.join(PROJECT_ROOT, "CLASSICAL_COMPARISON.md")
 K = 10
@@ -45,16 +31,11 @@ logger = logging.getLogger(__name__)
 np.random.seed(42)
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 def _measure_inference_latency(rank_fn, user_test, n_runs=200):
-    """Measure average per-user inference time in milliseconds."""
     users = list(user_test.keys())[:n_runs]
     if not users:
         return 0.0
 
-    # Warmup
     for uidx in users[:10]:
         items = [ir[0] for ir in user_test[uidx]]
         rank_fn(uidx, items)
@@ -71,24 +52,17 @@ def _measure_inference_latency(rank_fn, user_test, n_runs=200):
     return total_ms / count if count > 0 else 0.0
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 def main():
     print("=" * 70)
     print("CLASSICAL ML BASELINES — MovieLens 100K")
     print("=" * 70)
 
-    # ------------------------------------------------------------------
-    # 1. Load data (reuse the same pipeline as DLRM)
-    # ------------------------------------------------------------------
     logger.info("Loading MovieLens 100K data...")
     raw = load_movielens_data(DATA_PATH)
     (train_cont, train_cat, train_targets,
      test_cont, test_cat, test_targets,
      user2idx, item2idx, test_raw) = prepare_splits(raw)
 
-    # We also need train_raw for feature engineering
     sorted_idx = np.argsort(raw[:, 3])
     raw_sorted = raw[sorted_idx]
     split = int(len(raw_sorted) * 0.8)
@@ -97,9 +71,6 @@ def main():
     logger.info("Train: %d, Test: %d, Users: %d, Items: %d",
                 len(train_raw), len(test_raw), len(user2idx), len(item2idx))
 
-    # ------------------------------------------------------------------
-    # 2. Build rich features
-    # ------------------------------------------------------------------
     logger.info("Building feature matrices with %d features...", FeatureBuilder.NUM_FEATURES)
     fb = FeatureBuilder(train_raw, user2idx, item2idx)
     X_train, y_train = fb.build_matrix(train_raw)
@@ -109,9 +80,6 @@ def main():
     logger.info("Training label balance: %.1f%% positive (rating >= 4)", pos_rate * 100)
     logger.info("Feature matrix shape: train=%s, test=%s", X_train.shape, X_test.shape)
 
-    # ------------------------------------------------------------------
-    # 3. Group test interactions by user (for ranking evaluation)
-    # ------------------------------------------------------------------
     user_test = {}
     for i in range(len(test_raw)):
         uid = test_raw[i, 0]
@@ -126,12 +94,8 @@ def main():
         if uidx not in user_cont_map:
             user_cont_map[uidx] = test_cont[i]
 
-    # ------------------------------------------------------------------
-    # 4. Train classical models
-    # ------------------------------------------------------------------
     results = []
 
-    # --- XGBoost ---
     logger.info("Training XGBoost...")
     try:
         import xgboost as xgb
@@ -162,7 +126,6 @@ def main():
     except ImportError:
         logger.warning("xgboost not installed — skipping XGBoost baseline")
 
-    # --- LightGBM ---
     logger.info("Training LightGBM...")
     try:
         import lightgbm as lgb
@@ -192,7 +155,6 @@ def main():
     except ImportError:
         logger.warning("lightgbm not installed — skipping LightGBM baseline")
 
-    # --- Logistic Regression (with StandardScaler pipeline) ---
     logger.info("Training Logistic Regression...")
     from sklearn.linear_model import LogisticRegression
     from sklearn.pipeline import Pipeline
@@ -221,9 +183,6 @@ def main():
     logger.info("LogReg — NDCG@10: %.4f, Prec@10: %.4f, Hit@10: %.4f",
                  logreg_metrics["NDCG@10"], logreg_metrics["Precision@10"], logreg_metrics["HitRate@10"])
 
-    # ------------------------------------------------------------------
-    # 5. Evaluate DLRM
-    # ------------------------------------------------------------------
     logger.info("Loading saved DLRM model from %s...", MODEL_SAVE_PATH)
     import torch
 
@@ -264,9 +223,6 @@ def main():
     else:
         logger.warning("DLRM model not found at %s — skipping", MODEL_SAVE_PATH)
 
-    # ------------------------------------------------------------------
-    # 6. Naive baselines (for the full table)
-    # ------------------------------------------------------------------
     logger.info("Running naive baselines...")
 
     def random_rank(uidx, item_indices):
@@ -276,7 +232,6 @@ def main():
     random_metrics["train_time"] = None
     random_metrics["latency_ms"] = None
 
-    # Most Popular
     item_popularity = np.zeros(len(item2idx), dtype=np.float64)
     for row in train_raw:
         iid = row[1]
@@ -290,9 +245,6 @@ def main():
     popular_metrics["train_time"] = None
     popular_metrics["latency_ms"] = None
 
-    # ------------------------------------------------------------------
-    # 7. Print comparison table
-    # ------------------------------------------------------------------
     all_results = [
         ("DLRM", dlrm_metrics),
     ] + results + [
@@ -326,9 +278,6 @@ def main():
     print("=" * 90)
     print(f"Evaluated on {dlrm_metrics.get('num_eval_users', '?')} users with top-{K} recommendations.\n")
 
-    # ------------------------------------------------------------------
-    # 8. Save as CLASSICAL_COMPARISON.md
-    # ------------------------------------------------------------------
     lines = [
         "# Classical ML Baselines vs DLRM — MovieLens 100K\n",
         f"Evaluated on {dlrm_metrics.get('num_eval_users', '?')} users with top-{K} recommendations.\n",

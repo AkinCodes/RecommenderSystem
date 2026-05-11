@@ -13,7 +13,6 @@ from torch.utils.data import DataLoader, Dataset
 
 import wandb
 
-# Ensure project root is on path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from data.preprocessing import (
     MAX_RATING_VAR,
@@ -27,13 +26,10 @@ from data.preprocessing import (
 )
 from models.dlrm import DLRMModel
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
 DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ml-100k", "u.data")
 MODEL_SAVE_PATH = os.path.join(os.path.dirname(__file__), "..", "trained_model_movielens.pth")
 
-EMBEDDING_SIZES = [943, 1682]  # users, items
+EMBEDDING_SIZES = [943, 1682]
 MLP_LAYERS = [128, 64, 32]
 EPOCHS = 20
 BATCH_SIZE = 256
@@ -42,12 +38,9 @@ WEIGHT_DECAY = 1e-5
 DROPOUT = 0.2
 EARLY_STOP_PATIENCE = 5
 DEVICE = "cpu"
-K = 10  # top-K for ranking metrics
+K = 10
 
 
-# ---------------------------------------------------------------------------
-# Dataset
-# ---------------------------------------------------------------------------
 class MovieLensDataset(Dataset):
     def __init__(self, cont, cat, targets):
         self.cont = torch.tensor(cont, dtype=torch.float32)
@@ -61,9 +54,6 @@ class MovieLensDataset(Dataset):
         return self.cont[idx], self.cat[idx], self.targets[idx]
 
 
-# ---------------------------------------------------------------------------
-# Ranking metrics
-# ---------------------------------------------------------------------------
 def dcg(relevances, k):
     rel = np.array(relevances[:k], dtype=np.float64)
     if len(rel) == 0:
@@ -79,10 +69,8 @@ def ndcg_at_k(ranked_relevances, k):
 
 
 def evaluate(model, test_cont, test_cat, test_targets, user2idx, item2idx, test_raw, k=K):
-    """Compute ranking metrics per user, then average."""
     model.eval()
 
-    # Group test interactions by user
     user_test = {}
     for i in range(len(test_raw)):
         uid = test_raw[i, 0]
@@ -91,7 +79,6 @@ def evaluate(model, test_cont, test_cat, test_targets, user2idx, item2idx, test_
         rating = test_targets[i]
         user_test.setdefault(uidx, []).append((iidx, rating))
 
-    # We also need per-user continuous features
     user_cont = {}
     for i in range(len(test_raw)):
         uidx = int(test_cat[i, 0])
@@ -106,12 +93,10 @@ def evaluate(model, test_cont, test_cat, test_targets, user2idx, item2idx, test_
             if len(items_ratings) < 2:
                 continue
 
-            # Relevant items: binary label 1.0 (liked)
             relevant = {iidx for iidx, r in items_ratings if r >= 1.0}
             if len(relevant) == 0:
                 continue
 
-            # Score all test items for this user
             item_indices = [ir[0] for ir in items_ratings]
             n = len(item_indices)
 
@@ -126,30 +111,23 @@ def evaluate(model, test_cont, test_cat, test_targets, user2idx, item2idx, test_
             if scores.ndim == 0:
                 scores = np.array([scores.item()])
 
-            # For AUC
             for idx_j, (iidx, r) in enumerate(items_ratings):
                 all_labels.append(1.0 if r >= 1.0 else 0.0)
                 all_scores.append(float(scores[idx_j]))
 
-            # Rank by score descending
             ranked_idx = np.argsort(-scores)
             top_k_items = [item_indices[j] for j in ranked_idx[:k]]
 
-            # NDCG
             ranked_rels = [1.0 if item_indices[j] in relevant else 0.0 for j in ranked_idx]
             ndcgs.append(ndcg_at_k(ranked_rels, k))
 
-            # Precision@K
             hits_in_k = sum(1 for it in top_k_items if it in relevant)
             precisions.append(hits_in_k / k)
 
-            # Recall@K
             recalls.append(hits_in_k / len(relevant) if relevant else 0.0)
 
-            # Hit Rate@K (1 if at least one hit)
             hit_rates.append(1.0 if hits_in_k > 0 else 0.0)
 
-    # AUC
     auc = 0.0
     if len(set(all_labels)) > 1:
         auc = roc_auc_score(all_labels, all_scores)
@@ -165,15 +143,11 @@ def evaluate(model, test_cont, test_cat, test_targets, user2idx, item2idx, test_
     return metrics
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 def main():
     print("=" * 60)
     print("DLRM Training on MovieLens 100K")
     print("=" * 60)
 
-    # Initialise Weights & Biases
     wandb.init(
         project="recommender-system",
         entity="workwithakin-akin-olusanya",
@@ -194,7 +168,6 @@ def main():
         },
     )
 
-    # Load and prepare data
     print("\n[1/4] Loading data...")
     raw = load_movielens_data(DATA_PATH)
     print(f"  Total ratings: {len(raw)}")
@@ -205,7 +178,6 @@ def main():
     print(f"  Test samples:  {len(test_targets)}")
     print(f"  Users: {len(user2idx)}, Items: {len(item2idx)}")
 
-    # Build model
     print("\n[2/4] Building model...")
     model = DLRMModel(
         num_features=NUM_FEATURES,
@@ -220,11 +192,9 @@ def main():
     print(f"  Total parameters:     {total_params:,}")
     print(f"  Trainable parameters: {trainable_params:,}")
 
-    # Dataloaders
     train_ds = MovieLensDataset(train_cont, train_cat, train_targets)
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
 
-    # Training
     print(f"\n[3/4] Training for {EPOCHS} epochs (batch_size={BATCH_SIZE}, lr={LR})...")
     criterion = nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
@@ -249,11 +219,9 @@ def main():
             n_batches += 1
         avg_loss = epoch_loss / n_batches
 
-        # Learning rate scheduling
         scheduler.step(avg_loss)
         current_lr = optimizer.param_groups[0]["lr"]
 
-        # Early stopping check
         if avg_loss < best_loss:
             best_loss = avg_loss
             best_state = {k: v.clone() for k, v in model.state_dict().items()}
@@ -277,23 +245,19 @@ def main():
     train_time = time.time() - train_start
     print(f"  Training completed in {train_time:.1f}s")
 
-    # Restore best model weights
     if best_state is not None:
         model.load_state_dict(best_state)
         print("  Restored best model weights")
 
-    # Save best model
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
     print(f"  Model saved to {MODEL_SAVE_PATH}")
 
-    # Save serving context for the recommendation API
     idx2item = {v: k for k, v in item2idx.items()}
     train_raw_serve = raw[:int(len(raw) * 0.8)]
     user_ratings_serve, max_count_serve, user_timestamps_serve = compute_user_stats(train_raw_serve)
     item_ratings_serve, item_max_count_serve, item_popularity_rank_serve = compute_item_stats(train_raw_serve)
     max_user_days_serve = compute_max_user_days(user_timestamps_serve)
 
-    # Pre-compute per-user features (4 values: mean, count, var, days_active)
     user_features = {}
     for uid, uidx in user2idx.items():
         uratings = user_ratings_serve.get(uid, [3])
@@ -308,7 +272,6 @@ def main():
             user_days = 0.0
         user_features[uidx] = [user_mean, user_count, user_var, user_days]
 
-    # Pre-compute per-item features (3 values: mean, count, popularity_rank)
     item_features = {}
     for iid, iidx in item2idx.items():
         iratings = item_ratings_serve.get(iid, [3])
@@ -327,7 +290,6 @@ def main():
         pickle.dump(serving_ctx, f)
     print(f"  Serving context saved to {ctx_path}")
 
-    # Evaluation
     print("\n[4/4] Evaluating on test set...")
     metrics = evaluate(model, test_cont, test_cat, test_targets, user2idx, item2idx, test_raw)
 
@@ -341,7 +303,6 @@ def main():
     print(f"  AUC:          {metrics['AUC']:.4f}")
     print(f"  Eval users:   {metrics['num_eval_users']}")
 
-    # Inference latency
     print("\n" + "=" * 60)
     print("INFERENCE LATENCY (1000 runs, single sample)")
     print("=" * 60)
@@ -349,7 +310,6 @@ def main():
     dummy_cont = torch.randn(1, NUM_FEATURES)
     dummy_cat = torch.randint(0, 100, (1, 2))
 
-    # Warmup
     for _ in range(100):
         with torch.no_grad():
             model(dummy_cont, dummy_cat)
@@ -369,7 +329,6 @@ def main():
     print(f"  Min:    {np.min(latencies):.3f} ms")
     print(f"  Max:    {np.max(latencies):.3f} ms")
 
-    # Final summary
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)
@@ -387,7 +346,6 @@ def main():
     print(f"  Latency:      {np.mean(latencies):.3f} ms (mean), {np.percentile(latencies, 95):.3f} ms (p95)")
     print("=" * 60)
 
-    # Log evaluation metrics to W&B
     wandb.log({
         "ndcg_at_10": metrics["NDCG@10"],
         "precision_at_10": metrics["Precision@10"],
@@ -397,7 +355,6 @@ def main():
         "num_eval_users": metrics["num_eval_users"],
     })
 
-    # Log inference latency to W&B
     wandb.log({
         "inference_ms_mean": float(np.mean(latencies)),
         "inference_ms_median": float(np.median(latencies)),
@@ -405,7 +362,6 @@ def main():
         "inference_ms_p99": float(np.percentile(latencies, 99)),
     })
 
-    # Log the model as a W&B artifact
     artifact = wandb.Artifact("dlrm-movielens", type="model")
     artifact.add_file(MODEL_SAVE_PATH)
     wandb.log_artifact(artifact)

@@ -9,9 +9,6 @@ import torch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from models.dlrm import DLRMModel
 
-# ---------------------------------------------------------------------------
-# Config (mirrors train_movielens.py)
-# ---------------------------------------------------------------------------
 DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ml-100k", "u.data")
 ITEM_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ml-100k", "u.item")
 GENRE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ml-100k", "u.genre")
@@ -23,9 +20,7 @@ EMBEDDING_SIZES = [943, 1682]
 MLP_LAYERS = [128, 64, 32]
 K = 10
 
-# ---------------------------------------------------------------------------
-# Data loading (same as train_movielens.py)
-# ---------------------------------------------------------------------------
+
 def load_and_split():
     raw = np.loadtxt(DATA_PATH, dtype=np.int64)
     sorted_idx = np.argsort(raw[:, 3])
@@ -71,7 +66,6 @@ def load_and_split():
 
 
 def load_genres():
-    """Load genre names and item-genre mapping."""
     genre_names = []
     with open(GENRE_PATH, encoding="latin-1") as f:
         for line in f:
@@ -81,7 +75,6 @@ def load_genres():
             parts = line.split("|")
             genre_names.append(parts[0])
 
-    # item_id -> list of genre indices
     item_genres = {}
     with open(ITEM_PATH, encoding="latin-1") as f:
         for line in f:
@@ -94,9 +87,6 @@ def load_genres():
     return genre_names, item_genres
 
 
-# ---------------------------------------------------------------------------
-# Ranking helpers
-# ---------------------------------------------------------------------------
 def dcg(relevances, k):
     rel = np.array(relevances[:k], dtype=np.float64)
     if len(rel) == 0:
@@ -111,15 +101,11 @@ def ndcg_at_k(ranked_relevances, k):
     return actual / ideal if ideal > 0 else 0.0
 
 
-# ---------------------------------------------------------------------------
-# Main analysis
-# ---------------------------------------------------------------------------
 def main():
     print("=" * 60)
     print("FAIRNESS ANALYSIS — DLRM on MovieLens 100K")
     print("=" * 60)
 
-    # Load data
     (train_raw, test_raw,
      train_cont, train_cat, train_targets,
      test_cont, test_cat, test_targets,
@@ -128,19 +114,14 @@ def main():
     idx2item = {v: k for k, v in item2idx.items()}
     idx2user = {v: k for k, v in user2idx.items()}
 
-    # Load model
     model = DLRMModel(num_features=NUM_FEATURES, embedding_sizes=EMBEDDING_SIZES, mlp_layers=MLP_LAYERS)
     model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu", weights_only=True))
     model.eval()
     print("Model loaded.\n")
 
-    # Load genres
     genre_names, item_genres = load_genres()
 
-    # -----------------------------------------------------------------------
-    # Group test interactions by user (same logic as train_movielens.py)
-    # -----------------------------------------------------------------------
-    user_test = {}  # uidx -> [(iidx, norm_rating)]
+    user_test = {}
     for i in range(len(test_raw)):
         uid = test_raw[i, 0]
         uidx = user2idx[uid]
@@ -154,11 +135,8 @@ def main():
         if uidx not in user_cont_map:
             user_cont_map[uidx] = test_cont[i]
 
-    # -----------------------------------------------------------------------
-    # Generate top-K recommendations per user
-    # -----------------------------------------------------------------------
-    user_topk = {}  # uidx -> [iidx, ...]
-    user_ndcg = {}  # uidx -> ndcg value
+    user_topk = {}
+    user_ndcg = {}
 
     with torch.no_grad():
         for uidx, items_ratings in user_test.items():
@@ -196,16 +174,14 @@ def main():
     print("1. POPULARITY BIAS")
     print("=" * 60)
 
-    # Count training appearances per item (original IDs)
     item_train_count = {}
     for row in train_raw:
         iid = row[1]
         item_train_count[iid] = item_train_count.get(iid, 0) + 1
 
-    # Top 20% threshold
     counts = sorted(item_train_count.values(), reverse=True)
     n_popular = max(1, int(len(counts) * 0.2))
-    popularity_threshold = counts[n_popular - 1]  # count at the 20th percentile boundary
+    popularity_threshold = counts[n_popular - 1]
 
     popular_items = {iid for iid, c in item_train_count.items() if c >= popularity_threshold}
     popular_item_idx = {item2idx[iid] for iid in popular_items if iid in item2idx}
@@ -213,7 +189,6 @@ def main():
     print(f"  Popularity threshold: >= {popularity_threshold} ratings in training")
     print(f"  Popular items: {len(popular_items)} ({100*len(popular_items)/len(item2idx):.1f}% of catalog)")
 
-    # What % of recommendations come from popular items?
     total_recs = 0
     popular_recs = 0
     for uidx, topk in user_topk.items():
@@ -224,7 +199,6 @@ def main():
 
     rec_popular_pct = 100.0 * popular_recs / total_recs if total_recs > 0 else 0
 
-    # What % of test set interactions involve popular items?
     test_total = len(test_raw)
     test_popular = sum(1 for row in test_raw if row[1] in popular_items)
     test_popular_pct = 100.0 * test_popular / test_total
@@ -241,7 +215,6 @@ def main():
     print("2. USER ACTIVITY BIAS")
     print("=" * 60)
 
-    # Count training ratings per user (original IDs)
     user_train_count = {}
     for row in train_raw:
         uid = row[0]

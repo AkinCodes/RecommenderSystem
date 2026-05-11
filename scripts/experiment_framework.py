@@ -1,10 +1,4 @@
-"""A/B Experiment Framework for recommender model comparison.
-
-Provides ExperimentConfig, ExperimentResult dataclasses and an
-ExperimentRunner that trains two models, collects per-user metrics,
-and performs statistical analysis (t-test, confidence interval,
-Cohen's d, power analysis).
-"""
+"""A/B experiment framework: train two models, compare with statistical tests."""
 
 import os
 import sys
@@ -16,17 +10,11 @@ from typing import Optional
 import numpy as np
 from scipy import stats
 
-# Ensure project root is on path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
-# ---------------------------------------------------------------------------
-# Dataclasses
-# ---------------------------------------------------------------------------
 @dataclass
 class ExperimentConfig:
-    """Configuration for an A/B experiment."""
-
     name: str
     description: str = ""
 
@@ -56,8 +44,6 @@ class ExperimentConfig:
 
 @dataclass
 class ExperimentResult:
-    """Results from a completed A/B experiment."""
-
     config: ExperimentConfig
     model_a_metrics: dict[str, float] = field(default_factory=dict)
     model_b_metrics: dict[str, float] = field(default_factory=dict)
@@ -77,7 +63,6 @@ class ExperimentResult:
     winner: Optional[str] = None
 
     def to_dict(self) -> dict:
-        """Serialise result to a dictionary."""
         return {
             "config_name": self.config.name,
             "model_a_name": self.config.model_a_name,
@@ -97,11 +82,7 @@ class ExperimentResult:
         }
 
 
-# ---------------------------------------------------------------------------
-# Statistical helpers
-# ---------------------------------------------------------------------------
 def compute_cohens_d(a: np.ndarray, b: np.ndarray) -> float:
-    """Compute Cohen's d effect size between two samples."""
     na, nb = len(a), len(b)
     if na < 2 or nb < 2:
         return 0.0
@@ -115,16 +96,12 @@ def compute_cohens_d(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def compute_power(effect_size: float, n: int, alpha: float = 0.05) -> float:
-    """Approximate statistical power for a two-sample t-test.
-
-    Uses the non-central t-distribution approximation.
-    """
+    """Approximate power via non-central t-distribution."""
     if n < 2 or effect_size == 0:
         return 0.0
     df = 2 * n - 2
     noncentrality = effect_size * np.sqrt(n / 2)
     critical_t = stats.t.ppf(1 - alpha / 2, df)
-    # Power = P(reject H0 | H1 true)
     power = 1.0 - stats.nct.cdf(critical_t, df, noncentrality) + stats.nct.cdf(
         -critical_t, df, noncentrality
     )
@@ -134,11 +111,10 @@ def compute_power(effect_size: float, n: int, alpha: float = 0.05) -> float:
 def compute_confidence_interval(
     a: np.ndarray, b: np.ndarray, alpha: float = 0.05
 ) -> tuple[float, float]:
-    """Compute confidence interval for the mean difference (B - A)."""
     diff = np.mean(b) - np.mean(a)
     na, nb = len(a), len(b)
     se = np.sqrt(np.var(a, ddof=1) / na + np.var(b, ddof=1) / nb)
-    # Welch-Satterthwaite degrees of freedom (matches equal_var=False in ttest_ind)
+    # Welch-Satterthwaite degrees of freedom
     s1_sq_n = np.var(a, ddof=1) / na
     s2_sq_n = np.var(b, ddof=1) / nb
     df = (s1_sq_n + s2_sq_n) ** 2 / (
@@ -148,17 +124,11 @@ def compute_confidence_interval(
     return (float(diff - t_crit * se), float(diff + t_crit * se))
 
 
-# ---------------------------------------------------------------------------
-# ExperimentRunner
-# ---------------------------------------------------------------------------
 class ExperimentRunner:
-    """Runs an A/B experiment comparing two DLRM configurations."""
-
     def __init__(self, config: ExperimentConfig):
         self.config = config
         self.result = ExperimentResult(config=config)
 
-    # -- internal helpers ---------------------------------------------------
     def _build_model(self, embedding_sizes, mlp_layers):
         from models.dlrm import DLRMModel
 
@@ -169,7 +139,6 @@ class ExperimentRunner:
         )
 
     def _load_data(self):
-        """Load and split MovieLens data."""
         from data.preprocessing import load_movielens_data, prepare_splits
 
         raw = load_movielens_data(os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "ml-100k", "u.data"))
@@ -194,7 +163,6 @@ class ExperimentRunner:
         return time.time() - t0
 
     def _evaluate_per_user(self, model, test_cont, test_cat, test_targets, test_raw, user2idx, item2idx, k):
-        """Evaluate and return per-user metric arrays (for statistical tests)."""
         import torch
 
         model.eval()
@@ -236,12 +204,10 @@ class ExperimentRunner:
                 ranked_idx = np.argsort(-scores)
                 top_k_items = [item_indices[j] for j in ranked_idx[:k]]
 
-                # NDCG
                 from scripts.train_movielens import ndcg_at_k
                 ranked_rels = [1.0 if item_indices[j] in relevant else 0.0 for j in ranked_idx]
                 ndcgs.append(ndcg_at_k(ranked_rels, k))
 
-                # Precision@K
                 hits_in_k = sum(1 for it in top_k_items if it in relevant)
                 precisions.append(hits_in_k / k)
                 recalls.append(hits_in_k / len(relevant) if relevant else 0.0)
@@ -255,7 +221,6 @@ class ExperimentRunner:
         }
 
     def _run_stats(self):
-        """Run statistical tests on the primary metric."""
         metric = self.config.primary_metric
         a = np.array(self.result.model_a_per_user.get(metric, []))
         b = np.array(self.result.model_b_per_user.get(metric, []))
@@ -279,9 +244,7 @@ class ExperimentRunner:
                 self.config.model_b_name if np.mean(b) > np.mean(a) else self.config.model_a_name
             )
 
-    # -- public API ---------------------------------------------------------
     def run(self) -> ExperimentResult:
-        """Run a standard A/B experiment: train both models, evaluate, compare."""
         import torch
         from torch.utils.data import DataLoader
 
@@ -293,7 +256,6 @@ class ExperimentRunner:
         print(f"[Experiment] {self.config.name}")
         print(f"  {self.config.model_a_name} vs {self.config.model_b_name}")
 
-        # Load data
         raw, (train_cont, train_cat, train_targets,
                test_cont, test_cat, test_targets,
                user2idx, item2idx, test_raw) = self._load_data()
@@ -301,7 +263,6 @@ class ExperimentRunner:
         train_ds = MovieLensDataset(train_cont, train_cat, train_targets)
         train_loader = DataLoader(train_ds, batch_size=self.config.batch_size, shuffle=True)
 
-        # Train Model A
         print(f"\n  Training {self.config.model_a_name}...")
         model_a = self._build_model(self.config.model_a_embedding_sizes, self.config.model_a_mlp_layers)
         self.result.model_a_train_time = self._train_model(
@@ -309,7 +270,6 @@ class ExperimentRunner:
         )
         print(f"    Done in {self.result.model_a_train_time:.1f}s")
 
-        # Train Model B
         print(f"  Training {self.config.model_b_name}...")
         model_b = self._build_model(self.config.model_b_embedding_sizes, self.config.model_b_mlp_layers)
         self.result.model_b_train_time = self._train_model(
@@ -317,7 +277,6 @@ class ExperimentRunner:
         )
         print(f"    Done in {self.result.model_b_train_time:.1f}s")
 
-        # Evaluate
         print("  Evaluating...")
         per_user_a = self._evaluate_per_user(
             model_a, test_cont, test_cat, test_targets, test_raw, user2idx, item2idx, self.config.top_k
@@ -331,19 +290,13 @@ class ExperimentRunner:
         self.result.model_a_metrics = {k: float(np.mean(v)) for k, v in per_user_a.items()}
         self.result.model_b_metrics = {k: float(np.mean(v)) for k, v in per_user_b.items()}
 
-        # Stats
         self._run_stats()
 
         print("  Done.\n")
         return self.result
 
     def run_interleaved(self) -> ExperimentResult:
-        """Run an interleaved experiment.
-
-        Both models score the same users; we randomly pick which model's
-        ranking is shown per user and collect metrics for each group.
-        This controls for temporal / population shift.
-        """
+        """Randomly assign each user to model A or B to control for population shift."""
         import torch
         from torch.utils.data import DataLoader
 
@@ -361,7 +314,6 @@ class ExperimentRunner:
         train_ds = MovieLensDataset(train_cont, train_cat, train_targets)
         train_loader = DataLoader(train_ds, batch_size=self.config.batch_size, shuffle=True)
 
-        # Train both
         model_a = self._build_model(self.config.model_a_embedding_sizes, self.config.model_a_mlp_layers)
         self.result.model_a_train_time = self._train_model(
             model_a, train_loader, self.config.model_a_lr, self.config.model_a_epochs
@@ -371,7 +323,6 @@ class ExperimentRunner:
             model_b, train_loader, self.config.model_b_lr, self.config.model_b_epochs
         )
 
-        # Evaluate both on the same users, randomly assign
         per_user_a = self._evaluate_per_user(
             model_a, test_cont, test_cat, test_targets, test_raw, user2idx, item2idx, self.config.top_k
         )
@@ -379,7 +330,6 @@ class ExperimentRunner:
             model_b, test_cont, test_cat, test_targets, test_raw, user2idx, item2idx, self.config.top_k
         )
 
-        # Interleave: randomly assign each user index to A or B
         n_users = min(len(per_user_a.get("NDCG@10", [])), len(per_user_b.get("NDCG@10", [])))
         assignments = np.random.choice(["A", "B"], size=n_users)
 
@@ -403,11 +353,7 @@ class ExperimentRunner:
         return self.result
 
 
-# ---------------------------------------------------------------------------
-# Report generation
-# ---------------------------------------------------------------------------
 def to_report(result: ExperimentResult) -> str:
-    """Generate a markdown report from an ExperimentResult."""
     cfg = result.config
     lines = [
         f"# Experiment Report: {cfg.name}",
@@ -455,7 +401,6 @@ def to_report(result: ExperimentResult) -> str:
         "",
     ]
 
-    # Interpretation
     lines.append("## Interpretation")
     lines.append("")
     if result.is_significant:

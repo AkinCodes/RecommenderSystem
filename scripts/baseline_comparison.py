@@ -9,9 +9,6 @@ import torch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from models.dlrm import DLRMModel
 
-# ---------------------------------------------------------------------------
-# Config (mirrors train_movielens.py)
-# ---------------------------------------------------------------------------
 DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ml-100k", "u.data")
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "trained_model_movielens.pth")
 REPORT_PATH = os.path.join(os.path.dirname(__file__), "..", "BASELINE_COMPARISON.md")
@@ -24,9 +21,6 @@ K = 10
 np.random.seed(42)
 
 
-# ---------------------------------------------------------------------------
-# Data loading (same as train_movielens.py)
-# ---------------------------------------------------------------------------
 def load_and_split():
     raw = np.loadtxt(DATA_PATH, dtype=np.int64)
     sorted_idx = np.argsort(raw[:, 3])
@@ -71,9 +65,6 @@ def load_and_split():
             user2idx, item2idx, user_ratings, max_count)
 
 
-# ---------------------------------------------------------------------------
-# Ranking metrics
-# ---------------------------------------------------------------------------
 def dcg(relevances, k):
     rel = np.array(relevances[:k], dtype=np.float64)
     if len(rel) == 0:
@@ -89,10 +80,7 @@ def ndcg_at_k(ranked_relevances, k):
 
 
 def compute_metrics(user_test, rank_fn, k=K):
-    """Compute NDCG@K, Precision@K, HitRate@K for a ranking function.
-
-    rank_fn(uidx, item_indices) -> scores array (higher = better)
-    """
+    """rank_fn(uidx, item_indices) -> scores array (higher = better)."""
     ndcgs, precisions, hit_rates = [], [], []
 
     for uidx, items_ratings in user_test.items():
@@ -108,15 +96,12 @@ def compute_metrics(user_test, rank_fn, k=K):
         ranked_idx = np.argsort(-scores)
         top_k_items = [item_indices[j] for j in ranked_idx[:k]]
 
-        # NDCG
         ranked_rels = [1.0 if item_indices[j] in relevant else 0.0 for j in ranked_idx]
         ndcgs.append(ndcg_at_k(ranked_rels, k))
 
-        # Precision@K
         hits_in_k = sum(1 for it in top_k_items if it in relevant)
         precisions.append(hits_in_k / k)
 
-        # HitRate@K
         hit_rates.append(1.0 if hits_in_k > 0 else 0.0)
 
     return {
@@ -127,15 +112,11 @@ def compute_metrics(user_test, rank_fn, k=K):
     }
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 def main():
     print("=" * 60)
     print("BASELINE COMPARISON — MovieLens 100K")
     print("=" * 60)
 
-    # Load data
     (train_raw, test_raw,
      train_cont, train_cat, train_targets,
      test_cont, test_cat, test_targets,
@@ -144,7 +125,6 @@ def main():
     print(f"Train: {len(train_raw)}, Test: {len(test_raw)}")
     print(f"Users: {len(user2idx)}, Items: {len(item2idx)}\n")
 
-    # Group test interactions by user
     user_test = {}
     for i in range(len(test_raw)):
         uid = test_raw[i, 0]
@@ -159,9 +139,6 @@ def main():
         if uidx not in user_cont_map:
             user_cont_map[uidx] = test_cont[i]
 
-    # -------------------------------------------------------------------
-    # Baseline 1: Random
-    # -------------------------------------------------------------------
     print("Running Baseline 1: Random...")
 
     def random_rank(uidx, item_indices):
@@ -172,12 +149,8 @@ def main():
           f"Precision@10: {random_metrics['Precision@10']:.4f}, "
           f"HitRate@10: {random_metrics['HitRate@10']:.4f}")
 
-    # -------------------------------------------------------------------
-    # Baseline 2: Most Popular
-    # -------------------------------------------------------------------
     print("Running Baseline 2: Most Popular...")
 
-    # Count training appearances per item index
     item_popularity = np.zeros(len(item2idx), dtype=np.float64)
     for row in train_raw:
         iid = row[1]
@@ -192,12 +165,8 @@ def main():
           f"Precision@10: {popular_metrics['Precision@10']:.4f}, "
           f"HitRate@10: {popular_metrics['HitRate@10']:.4f}")
 
-    # -------------------------------------------------------------------
-    # Baseline 3: User Mean (item average rating)
-    # -------------------------------------------------------------------
     print("Running Baseline 3: User Mean (item avg rating)...")
 
-    # Average rating per item from training data
     item_rating_sum = np.zeros(len(item2idx), dtype=np.float64)
     item_rating_count = np.zeros(len(item2idx), dtype=np.float64)
     for row in train_raw:
@@ -210,7 +179,7 @@ def main():
     item_avg_rating = np.where(
         item_rating_count > 0,
         item_rating_sum / item_rating_count,
-        3.0  # default for unseen items
+        3.0,  # default for unseen items
     )
 
     def user_mean_rank(uidx, item_indices):
@@ -221,9 +190,6 @@ def main():
           f"Precision@10: {user_mean_metrics['Precision@10']:.4f}, "
           f"HitRate@10: {user_mean_metrics['HitRate@10']:.4f}")
 
-    # -------------------------------------------------------------------
-    # DLRM
-    # -------------------------------------------------------------------
     print("Running DLRM model...")
 
     model = DLRMModel(num_features=NUM_FEATURES, embedding_sizes=EMBEDDING_SIZES, mlp_layers=MLP_LAYERS)
@@ -247,9 +213,6 @@ def main():
           f"Precision@10: {dlrm_metrics['Precision@10']:.4f}, "
           f"HitRate@10: {dlrm_metrics['HitRate@10']:.4f}")
 
-    # -------------------------------------------------------------------
-    # Print comparison table
-    # -------------------------------------------------------------------
     print("\n" + "=" * 60)
     print("COMPARISON TABLE")
     print("=" * 60)
@@ -268,9 +231,6 @@ def main():
     for name, m in results:
         print(f"| {name:<15} | {m['NDCG@10']:>8.4f} | {m['Precision@10']:>13.4f} | {m['HitRate@10']:>11.4f} |")
 
-    # -------------------------------------------------------------------
-    # Save report
-    # -------------------------------------------------------------------
     report_lines = [
         "# Baseline Comparison — DLRM vs Simple Baselines on MovieLens 100K\n",
         f"Evaluated on {dlrm_metrics['num_eval_users']} users with top-{K} recommendations.\n",
