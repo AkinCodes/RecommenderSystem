@@ -60,3 +60,5 @@ uv.lock
 
 # Learning system (personal, not project code)
 docs/learning_roadmap/
+trained_model.pth
+*.pkl
