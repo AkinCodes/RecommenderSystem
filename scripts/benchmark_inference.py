@@ -1,9 +1,4 @@
-"""Benchmark PyTorch vs ONNX Runtime inference latency.
-
-Usage:
-    uv run python scripts/benchmark_inference.py
-    uv run python scripts/benchmark_inference.py --onnx-path models/dlrm.onnx
-"""
+"""Benchmark PyTorch vs ONNX Runtime inference latency."""
 
 import argparse
 import os
@@ -17,7 +12,6 @@ import torch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from models.dlrm import DLRMModel
 
-# Defaults
 NUM_FEATURES = 2
 EMBEDDING_SIZES = [943, 1682]
 MLP_LAYERS = [128, 64, 32]
@@ -28,7 +22,6 @@ BENCHMARK_RUNS = 500
 
 
 def benchmark_pytorch(model, batch_size, num_features, warmup=WARMUP_RUNS, runs=BENCHMARK_RUNS):
-    """Benchmark PyTorch inference and return latencies in ms."""
     model.eval()
     cont = torch.randn(batch_size, num_features)
     cat = torch.randint(0, 100, (batch_size, 2))
@@ -47,7 +40,6 @@ def benchmark_pytorch(model, batch_size, num_features, warmup=WARMUP_RUNS, runs=
 
 
 def benchmark_onnx(session, batch_size, num_features, warmup=WARMUP_RUNS, runs=BENCHMARK_RUNS):
-    """Benchmark ONNX Runtime inference and return latencies in ms."""
     cont = np.random.randn(batch_size, num_features).astype(np.float32)
     cat = np.random.randint(0, 100, (batch_size, 2)).astype(np.int64)
 
@@ -69,7 +61,6 @@ def benchmark_onnx(session, batch_size, num_features, warmup=WARMUP_RUNS, runs=B
 
 
 def format_table(results):
-    """Format results as a markdown table."""
     header = "| Batch Size | Runtime | Mean (ms) | Median (ms) | P95 (ms) | P99 (ms) | Throughput (samples/s) |"
     sep = "|------------|---------|-----------|-------------|----------|----------|----------------------|"
     rows = [header, sep]
@@ -105,7 +96,6 @@ def main():
     )
     args = parser.parse_args()
 
-    # Load PyTorch model
     print("Loading PyTorch model...")
     pt_model = DLRMModel(
         num_features=NUM_FEATURES,
@@ -118,7 +108,6 @@ def main():
     else:
         print("  Using random weights (no checkpoint found)")
 
-    # Load ONNX model
     if not os.path.exists(args.onnx_path):
         print(f"ONNX model not found at {args.onnx_path}. Run export_onnx.py first.")
         sys.exit(1)
@@ -126,7 +115,6 @@ def main():
     print(f"Loading ONNX model from {args.onnx_path}...")
     ort_session = ort.InferenceSession(args.onnx_path)
 
-    # Benchmark
     print(f"\nBenchmarking across batch sizes: {BATCH_SIZES}")
     print(f"  Warmup: {WARMUP_RUNS} runs, Benchmark: {BENCHMARK_RUNS} runs\n")
 
@@ -135,7 +123,6 @@ def main():
     for bs in BATCH_SIZES:
         print(f"  Batch size {bs}...")
 
-        # PyTorch
         pt_lat = benchmark_pytorch(pt_model, bs, NUM_FEATURES)
         pt_result = {
             "batch_size": bs,
@@ -147,7 +134,6 @@ def main():
         }
         all_results.append(pt_result)
 
-        # ONNX
         ort_lat = benchmark_onnx(ort_session, bs, NUM_FEATURES)
         ort_result = {
             "batch_size": bs,
@@ -162,14 +148,12 @@ def main():
         speedup = pt_result["mean_ms"] / ort_result["mean_ms"] if ort_result["mean_ms"] > 0 else 0
         print(f"    PyTorch: {pt_result['mean_ms']:.3f}ms  ONNX: {ort_result['mean_ms']:.3f}ms  Speedup: {speedup:.2f}x")
 
-    # Print table
     table = format_table(all_results)
     print(f"\n{'=' * 80}")
     print("BENCHMARK RESULTS")
     print(f"{'=' * 80}\n")
     print(table)
 
-    # Summary
     print(f"\n{'=' * 80}")
     print("SUMMARY")
     print(f"{'=' * 80}")
@@ -179,7 +163,6 @@ def main():
         speedup = pt["mean_ms"] / ox["mean_ms"] if ox["mean_ms"] > 0 else 0
         print(f"  Batch {bs:>4}: ONNX is {speedup:.2f}x {'faster' if speedup > 1 else 'slower'} than PyTorch")
 
-    # Save BENCHMARK.md
     onnx_size_kb = os.path.getsize(args.onnx_path) / 1024
     pt_params = sum(p.numel() for p in pt_model.parameters())
 

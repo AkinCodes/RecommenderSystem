@@ -8,7 +8,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 
-# Ensure Python can find the 'models' directory
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from models.dlrm import DLRMModel
@@ -17,8 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class DLRMTrainer(pl.LightningModule):
-    """PyTorch Lightning wrapper for training the DLRM model."""
-
     def __init__(self, num_features, embedding_sizes, mlp_layers, lr=1e-3):
         super(DLRMTrainer, self).__init__()
 
@@ -26,7 +23,6 @@ class DLRMTrainer(pl.LightningModule):
         self.loss_fn = nn.BCELoss()
         self.lr = lr
 
-        # Enable manual optimization
         self.automatic_optimization = False
 
     def forward(self, continuous_features, categorical_features):
@@ -39,15 +35,12 @@ class DLRMTrainer(pl.LightningModule):
         predictions = self(continuous_features, categorical_features)
         loss = self.loss_fn(predictions, labels)
 
-        # Get optimizers manually (since automatic optimization is disabled)
         opt_dense, opt_sparse = self.optimizers()
 
-        # Perform manual optimization for dense parameters
         opt_dense.zero_grad()
         self.manual_backward(loss)
         opt_dense.step()
 
-        # Perform manual optimization for sparse parameters
         if opt_sparse:
             opt_sparse.zero_grad()
             opt_sparse.step()
@@ -68,7 +61,6 @@ class DLRMTrainer(pl.LightningModule):
         optimizer_params = []
         sparse_params = []
 
-        # Separate sparse and dense parameters
         for name, param in self.named_parameters():
             if param.requires_grad:
                 if "embedding" in name:
@@ -86,7 +78,6 @@ class DLRMTrainer(pl.LightningModule):
 
 
 def get_dataloader():
-    """Create a synthetic dataloader for training/testing."""
     dataset = TensorDataset(
         torch.randn(1000, 10),
         torch.randint(0, 5, (1000, 5)),
@@ -124,18 +115,15 @@ if __name__ == "__main__":
         num_features=10, embedding_sizes=[10, 10, 10, 10, 10], mlp_layers=[64, 32, 16]
     )
 
-    # Test Model Forward Pass BEFORE Training
     logger.info("Testing Model Forward Pass...")
     batch = next(iter(get_dataloader()))
     continuous_features, categorical_features, labels = batch
     output = model(continuous_features, categorical_features)
     logger.info("Forward Pass Output Shape: %s", output.shape)
 
-    # Train Model
     trainer.fit(model, get_dataloader())
     logger.info("Training Complete!")
 
-    # Run Validation After Training
     logger.info("Running Validation...")
     trainer.validate(model, get_dataloader())
     logger.info("Validation Complete!")

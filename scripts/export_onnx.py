@@ -1,13 +1,4 @@
-"""
-Export DLRM model to ONNX for optimized inference.
-
-Exports a trained DLRM model to ONNX format for optimized inference.
-Validates the exported model by comparing PyTorch and ONNX outputs.
-
-Usage:
-    python scripts/export_onnx.py
-    python scripts/export_onnx.py --model-path trained_model_movielens.pth --output models/dlrm.onnx
-"""
+"""Export DLRM model to ONNX and validate numerical equivalence."""
 
 import argparse
 import logging
@@ -22,7 +13,6 @@ import onnxruntime as ort
 import torch
 import yaml
 
-# Ensure project root is on the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from models.dlrm import DLRMModel
@@ -40,14 +30,12 @@ DEFAULT_OUTPUT = PROJECT_ROOT / "models" / "dlrm.onnx"
 
 
 def load_config(config_path: Path) -> dict:
-    """Load model configuration from YAML."""
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
     return cfg["model"]
 
 
 def load_pytorch_model(model_path: Path, cfg: dict) -> DLRMModel:
-    """Instantiate and load the trained DLRM model."""
     model = DLRMModel(
         num_features=cfg["num_features"],
         embedding_sizes=cfg["embedding_sizes"],
@@ -61,9 +49,7 @@ def load_pytorch_model(model_path: Path, cfg: dict) -> DLRMModel:
 
 
 def create_dummy_inputs(cfg: dict, batch_size: int = 1):
-    """Create dummy inputs that match the model's expected shapes."""
     continuous = torch.randn(batch_size, cfg["num_features"], dtype=torch.float32)
-    # Categorical values must be valid indices into each embedding table
     num_categorical = len(cfg["embedding_sizes"])
     categorical = torch.stack(
         [
@@ -81,7 +67,6 @@ def export_to_onnx(
     output_path: Path,
     opset_version: int = 17,
 ) -> None:
-    """Export the PyTorch DLRM to ONNX format with dynamic batch size."""
     continuous, categorical = create_dummy_inputs(cfg, batch_size=2)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -110,7 +95,6 @@ def export_to_onnx(
 
 
 def validate_onnx(onnx_path: Path) -> None:
-    """Run the ONNX checker to verify the exported model is well-formed."""
     logger.info("Validating ONNX model structure...")
     onnx_model = onnx.load(str(onnx_path))
     onnx.checker.check_model(onnx_model)
@@ -124,7 +108,6 @@ def compare_outputs(
     n_samples: int = 5,
     atol: float = 1e-5,
 ) -> bool:
-    """Compare PyTorch and ONNX Runtime outputs to ensure numerical equivalence."""
     session = ort.InferenceSession(
         str(onnx_path),
         providers=["CPUExecutionProvider"],
@@ -138,11 +121,9 @@ def compare_outputs(
         batch_size = np.random.choice([1, 4, 16, 32])
         continuous, categorical = create_dummy_inputs(cfg, batch_size=int(batch_size))
 
-        # PyTorch inference
         with torch.no_grad():
             pt_output = pytorch_model(continuous, categorical).numpy()
 
-        # ONNX Runtime inference
         ort_inputs = {
             "continuous_features": continuous.numpy(),
             "categorical_features": categorical.numpy(),
@@ -175,7 +156,6 @@ def compare_outputs(
 
 
 def print_size_comparison(pytorch_path: Path, onnx_path: Path) -> None:
-    """Print file size comparison between PyTorch and ONNX models."""
     pt_size = pytorch_path.stat().st_size
     onnx_size = onnx_path.stat().st_size
 
@@ -237,7 +217,6 @@ def main():
     )
     args = parser.parse_args()
 
-    # ── Load config and model ─────────────────────────────────────────────
     if not args.config.exists():
         logger.error("Config file not found: %s", args.config)
         sys.exit(1)
@@ -257,16 +236,12 @@ def main():
     total_params = sum(p.numel() for p in model.parameters())
     logger.info("Total parameters: %s", f"{total_params:,}")
 
-    # ── Export ────────────────────────────────────────────────────────────
     export_to_onnx(model, cfg, args.output, opset_version=args.opset)
 
-    # ── Validate structure ────────────────────────────────────────────────
     validate_onnx(args.output)
 
-    # ── Numerical comparison ──────────────────────────────────────────────
     passed = compare_outputs(model, args.output, cfg, n_samples=5, atol=args.tolerance)
 
-    # ── Size comparison ───────────────────────────────────────────────────
     print_size_comparison(args.model_path, args.output)
 
     if not passed:

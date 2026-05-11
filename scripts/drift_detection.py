@@ -1,15 +1,4 @@
-"""Drift detection for the DLRM recommender.
-
-Compares prediction-score distributions between training and test splits
-using the Kolmogorov-Smirnov test and KL divergence.  Outputs structured
-JSON results and returns a non-zero exit code when drift is detected, so
-CI pipelines can gate on it.
-
-Usage:
-    python scripts/drift_detection.py
-    python scripts/drift_detection.py --output drift_report.json
-    python scripts/drift_detection.py --threshold-ks 0.15 --threshold-kl 0.1
-"""
+"""Drift detection: KS test + KL divergence on prediction-score distributions."""
 
 import argparse
 import json
@@ -23,15 +12,9 @@ from scipy import stats
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from models.dlrm import DLRMModel
 
-# ---------------------------------------------------------------------------
-# Default thresholds — override via CLI flags
-# ---------------------------------------------------------------------------
 KS_THRESHOLD = 0.1
 KL_THRESHOLD = 0.05
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
 DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ml-100k", "u.data")
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "trained_model_movielens.pth")
 
@@ -43,12 +26,7 @@ EMBEDDING_SIZES = [943, 1682]
 MLP_LAYERS = [128, 64, 32]
 
 
-# ---------------------------------------------------------------------------
-# Data helpers
-# ---------------------------------------------------------------------------
-
 def load_and_split():
-    """Load MovieLens 100k data using the shared preprocessing module."""
     raw = load_movielens_data(DATA_PATH)
     (train_cont, train_cat, train_targets,
      test_cont, test_cat, test_targets,
@@ -60,12 +38,7 @@ def load_and_split():
     )
 
 
-# ---------------------------------------------------------------------------
-# Prediction & metrics
-# ---------------------------------------------------------------------------
-
 def get_prediction_scores(model, cont, cat, batch_size=1024):
-    """Run model inference in batches and return a 1-D numpy array of scores."""
     model.eval()
     all_scores = []
     n = len(cont)
@@ -82,7 +55,6 @@ def get_prediction_scores(model, cont, cat, batch_size=1024):
 
 
 def kl_divergence(p, q, n_bins=50):
-    """Compute KL divergence between two distributions via histograms."""
     bin_edges = np.linspace(0, 1, n_bins + 1)
     p_hist, _ = np.histogram(p, bins=bin_edges, density=True)
     q_hist, _ = np.histogram(q, bins=bin_edges, density=True)
@@ -97,7 +69,6 @@ def kl_divergence(p, q, n_bins=50):
 
 
 def build_report(train_scores, test_scores, ks_threshold, kl_threshold):
-    """Return a structured dict with per-metric pass/fail results."""
     ks_stat, ks_pval = stats.ks_2samp(train_scores, test_scores)
     kl_div = kl_divergence(train_scores, test_scores)
 
@@ -135,10 +106,6 @@ def build_report(train_scores, test_scores, ks_threshold, kl_threshold):
     }
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
         description="Detect prediction-distribution drift for the DLRM model."
@@ -167,13 +134,11 @@ def parse_args(argv=None):
 def main(argv=None):
     args = parse_args(argv)
 
-    # Load data
     (
         train_cont, train_cat, _train_targets,
         test_cont, test_cat, _test_targets,
     ) = load_and_split()
 
-    # Load model
     model = DLRMModel(
         num_features=NUM_FEATURES,
         embedding_sizes=EMBEDDING_SIZES,
@@ -184,18 +149,15 @@ def main(argv=None):
     )
     model.eval()
 
-    # Score
     train_scores = get_prediction_scores(model, train_cont, train_cat)
     test_scores = get_prediction_scores(model, test_cont, test_cat)
 
-    # Build report
     report = build_report(
         train_scores, test_scores,
         ks_threshold=args.threshold_ks,
         kl_threshold=args.threshold_kl,
     )
 
-    # Output
     report_json = json.dumps(report, indent=2)
     print(report_json)
 
@@ -204,7 +166,6 @@ def main(argv=None):
             f.write(report_json + "\n")
         print(f"\nReport written to {args.output}")
 
-    # Exit code: 0 = no drift, 1 = drift detected
     return 0 if report["overall"] == "pass" else 1
 
 

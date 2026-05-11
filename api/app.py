@@ -1,7 +1,4 @@
-"""CinemaScopeAI Recommender API.
-
-Provides movie recommendation endpoints powered by a DLRM model and the TMDB API.
-"""
+"""CinemaScopeAI Recommender API."""
 
 import logging
 import os
@@ -28,8 +25,6 @@ except ImportError:
     from sklearn.neighbors import NearestNeighbors
 
     FAISS_AVAILABLE = False
-
-# Configuration
 
 load_dotenv()
 
@@ -59,8 +54,6 @@ class ModelInputError(Exception):
     """Raised when prediction input is invalid."""
 
 
-# Load and validate config from YAML
-
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "configs", "config.yaml")
 
 REQUIRED_CONFIG_KEYS = {
@@ -69,7 +62,7 @@ REQUIRED_CONFIG_KEYS = {
 
 
 def load_and_validate_config(path: str) -> dict:
-    """Load YAML config and validate that all required keys are present."""
+    """Load YAML config and validate required keys."""
     if not os.path.exists(path):
         raise FileNotFoundError(f"Configuration file not found: {path}")
 
@@ -104,8 +97,6 @@ try:
 except (FileNotFoundError, ValueError) as exc:
     logger.error("Configuration error: %s", exc)
     raise SystemExit(1) from exc
-
-# Request / response schemas
 
 
 class PredictionRequest(BaseModel):
@@ -145,11 +136,9 @@ class ModelInfoResponse(BaseModel):
     mlp_layers: list[int]
 
 
-# Model loading
-
-num_continuous_features = model_cfg["num_features"]  # 2: mean_rating, normalised_count
-num_categorical_features = len(model_cfg["embedding_sizes"])  # 2: user_id, item_id
-embedding_sizes = model_cfg["embedding_sizes"]  # [943, 1682]
+num_continuous_features = model_cfg["num_features"]
+num_categorical_features = len(model_cfg["embedding_sizes"])
+embedding_sizes = model_cfg["embedding_sizes"]
 
 model_loaded = False
 model: DLRMModel | None = None
@@ -179,8 +168,6 @@ except Exception as exc:
     logger.error("Failed to load DLRM model: %s", exc, exc_info=True)
     model = None
 
-# Serving context (user/item mappings + per-user features)
-
 SERVING_CONTEXT_PATH = os.path.join(os.path.dirname(__file__), "..", "serving_context.pkl")
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "ml-100k")
 
@@ -208,7 +195,6 @@ if os.path.exists(os.path.join(DATA_DIR, "u.item")):
 else:
     logger.warning("Item metadata file not found at '%s/u.item'.", DATA_DIR)
 
-# Cold-start fallback: pre-compute popular items from item metadata
 popular_items: list[dict] = []
 if item_metadata:
     popular_ids = sorted(item_metadata.keys())[:50]
@@ -222,8 +208,7 @@ if item_metadata:
     ]
     logger.info("Cold-start fallback ready: %d popular items.", len(popular_items))
 
-# Faiss ANN index for two-stage retrieval
-
+# Faiss ANN for sub-millisecond candidate generation
 faiss_index = None
 item_embeddings_np: np.ndarray | None = None
 
@@ -258,17 +243,12 @@ if model_loaded and model is not None:
         faiss_index = None
         item_embeddings_np = None
 
-# App
-
 app = FastAPI(title="CinemaScopeAI Recommender", version=APP_VERSION)
-
-
-# Middleware: request/response logging
 
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """Log method, path, status code and duration for every request."""
+    """Log method, path, status and duration for every request."""
     start = time.perf_counter()
     response = await call_next(request)
     duration_ms = (time.perf_counter() - start) * 1000
@@ -282,12 +262,9 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-# Structured error handling
-
-
 @app.exception_handler(HTTPException)
 async def http_exception_handler(_request: Request, exc: HTTPException):
-    """Return structured JSON error responses for all HTTPExceptions."""
+    """Return structured JSON for HTTPExceptions."""
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -300,7 +277,7 @@ async def http_exception_handler(_request: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(_request: Request, exc: Exception):
-    """Catch-all for unhandled exceptions -- return a structured 500."""
+    """Catch-all handler returning a structured 500."""
     logger.error("Unhandled exception: %s", exc, exc_info=True)
     return JSONResponse(
         status_code=500,
@@ -312,21 +289,15 @@ async def unhandled_exception_handler(_request: Request, exc: Exception):
     )
 
 
-# Root endpoint
-
-
 @app.get("/")
 async def root():
-    """Basic root endpoint."""
+    """Root endpoint."""
     return {"status": "healthy", "message": "Recommendation API is running."}
-
-
-# Health check
 
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
-    """Health-check endpoint with model status."""
+    """Health check with model status."""
     return {
         "status": "healthy",
         "model_loaded": model_loaded,
@@ -334,12 +305,9 @@ async def health():
     }
 
 
-# Model info
-
-
 @app.get("/api/v1/models", response_model=ModelInfoResponse)
 async def model_info():
-    """Return information about the loaded model."""
+    """Return loaded model metadata."""
     if model is None:
         raise HTTPException(status_code=503, detail="Model is not loaded.")
 
@@ -356,11 +324,8 @@ async def model_info():
     }
 
 
-# TMDB helpers
-
-
 async def fetch_real_movies() -> list[dict]:
-    """Fetch popular movies from the TMDB API (async / non-blocking)."""
+    """Fetch popular movies from the TMDB API."""
     if not TMDB_BEARER_TOKEN:
         raise TMDBError("TMDB_BEARER_TOKEN is not configured.")
 
@@ -405,12 +370,9 @@ async def fetch_real_movies() -> list[dict]:
     ]
 
 
-# Predict (versioned)
-
-
 @app.post("/api/v1/predict", response_model=list[RecommendationResponse])
 async def predict(request: PredictionRequest):
-    """Return the top-5 movie recommendations based on the DLRM prediction score."""
+    """Return top-5 movie recommendations from DLRM score."""
     if not model_loaded or model is None:
         raise HTTPException(status_code=503, detail="Model is not loaded.")
 
@@ -424,7 +386,6 @@ async def predict(request: PredictionRequest):
             ),
         )
 
-    # Validate categorical feature ranges
     for i, (val, max_val) in enumerate(
         zip(request.categorical_features, embedding_sizes)
     ):
@@ -476,28 +437,26 @@ async def predict(request: PredictionRequest):
 
 
 def _build_user_item_features(user_feats, item_indices, item_features, n_features):
-    """Build an (N, n_features) tensor combining user, item, and interaction features."""
+    """Build (N, n_features) tensor combining user, item, and interaction features."""
     n = len(item_indices)
     cont_np = np.zeros((n, n_features), dtype=np.float32)
     for j, item_idx in enumerate(item_indices):
-        cont_np[j, 0] = user_feats[0]  # user_mean_rating
-        cont_np[j, 1] = user_feats[1]  # user_rating_count
-        cont_np[j, 2] = user_feats[2]  # user_rating_var
-        cont_np[j, 3] = user_feats[3]  # user_days_active
+        cont_np[j, 0] = user_feats[0]
+        cont_np[j, 1] = user_feats[1]
+        cont_np[j, 2] = user_feats[2]
+        cont_np[j, 3] = user_feats[3]
         ifeats = item_features.get(item_idx, [0.6, 0.0, 0.0])
-        cont_np[j, 4] = ifeats[0]  # item_mean_rating
-        cont_np[j, 5] = ifeats[1]  # item_rating_count
-        cont_np[j, 6] = ifeats[2]  # item_popularity_rank
-        cont_np[j, 7] = (user_feats[0] - ifeats[0] + 1.0) / 2.0  # user_item_deviation
+        cont_np[j, 4] = ifeats[0]
+        cont_np[j, 5] = ifeats[1]
+        cont_np[j, 6] = ifeats[2]
+        # Normalised deviation between user avg and item avg rating
+        cont_np[j, 7] = (user_feats[0] - ifeats[0] + 1.0) / 2.0
     return torch.tensor(cont_np, dtype=torch.float32)
-
-
-# Personalized recommendations
 
 
 @app.get("/api/v1/recommend/{user_id}")
 async def recommend(user_id: int, top_k: int = 10):
-    """Return top-K personalized recommendations for a known user."""
+    """Return top-K personalized recommendations for a user."""
     if not model_loaded or model is None:
         raise HTTPException(status_code=503, detail="Model is not loaded.")
 
@@ -540,17 +499,9 @@ async def recommend(user_id: int, top_k: int = 10):
     return {"user_id": user_id, "recommendations": results}
 
 
-# Two-stage retrieval: Faiss candidate generation + full-model reranking
-
-
 @app.get("/api/v1/recommend_v2/{user_id}")
 async def recommend_v2(user_id: int, top_k: int = 10, num_candidates: int = 100):
-    """Two-stage recommendation: ANN candidate generation then full DLRM reranking.
-
-    Stage 1 retrieves *num_candidates* items via approximate nearest-neighbour
-    search over item embeddings. Stage 2 scores those candidates through the
-    full DLRM model and returns the top *top_k*.
-    """
+    """Two-stage recommendation: ANN candidate generation + DLRM reranking."""
     if not model_loaded or model is None:
         raise HTTPException(status_code=503, detail="Model is not loaded.")
 
@@ -560,7 +511,6 @@ async def recommend_v2(user_id: int, top_k: int = 10, num_candidates: int = 100)
     if faiss_index is None or item_embeddings_np is None:
         raise HTTPException(status_code=503, detail="ANN index is not available.")
 
-    # Cold-start fallback (same behaviour as v1)
     if user_id not in serving_context["user2idx"]:
         if popular_items:
             return {
@@ -576,10 +526,8 @@ async def recommend_v2(user_id: int, top_k: int = 10, num_candidates: int = 100)
     item_features = serving_context.get("item_features", {})
     num_items = len(serving_context["item2idx"])
 
-    # Clamp num_candidates to the actual catalogue size
     num_candidates = min(num_candidates, num_items)
 
-    # --- Stage 1: ANN candidate generation ---
     stage1_start = time.perf_counter()
 
     user_emb = model.embeddings[0](torch.tensor([user_idx])).detach().numpy().astype(np.float32)
@@ -594,7 +542,6 @@ async def recommend_v2(user_id: int, top_k: int = 10, num_candidates: int = 100)
 
     stage1_ms = (time.perf_counter() - stage1_start) * 1000
 
-    # --- Stage 2: Full DLRM reranking over candidates ---
     stage2_start = time.perf_counter()
 
     cont = _build_user_item_features(user_feats, candidate_indices, item_features, num_continuous_features)
@@ -611,7 +558,6 @@ async def recommend_v2(user_id: int, top_k: int = 10, num_candidates: int = 100)
 
     stage2_ms = (time.perf_counter() - stage2_start) * 1000
 
-    # --- Brute-force timing for comparison ---
     brute_start = time.perf_counter()
     cont_all = _build_user_item_features(user_feats, list(range(num_items)), item_features, num_continuous_features)
     cat_all = torch.tensor([[user_idx, i] for i in range(num_items)], dtype=torch.int64)
@@ -647,8 +593,7 @@ async def recommend_v2(user_id: int, top_k: int = 10, num_candidates: int = 100)
     }
 
 
-# Keep old endpoint for backwards compatibility (redirects to versioned)
 @app.post("/predict/", response_model=list[RecommendationResponse])
 async def predict_legacy(request: PredictionRequest):
-    """Legacy predict endpoint -- delegates to the versioned endpoint."""
+    """Legacy predict endpoint -- delegates to /api/v1/predict."""
     return await predict(request)

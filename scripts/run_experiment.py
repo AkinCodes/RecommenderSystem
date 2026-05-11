@@ -1,10 +1,4 @@
-"""CLI entry-point for running A/B experiments.
-
-Usage:
-    uv run python scripts/run_experiment.py                          # default config
-    uv run python scripts/run_experiment.py --config configs/experiments/dlrm_vs_baseline.yaml
-    uv run python scripts/run_experiment.py --interleaved            # interleaved mode
-"""
+"""CLI entry-point for running A/B experiments."""
 
 import argparse
 import json
@@ -25,7 +19,6 @@ RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "experiments", "resu
 
 
 def load_config(path: str) -> ExperimentConfig:
-    """Load an ExperimentConfig from a YAML file."""
     with open(path) as f:
         data = yaml.safe_load(f)
 
@@ -85,11 +78,9 @@ def main():
     else:
         result = runner.run()
 
-    # Print report
     report = to_report(result)
     print(report)
 
-    # Save results
     os.makedirs(RESULTS_DIR, exist_ok=True)
     safe_name = config.name.replace(" ", "_").replace("/", "_")
 

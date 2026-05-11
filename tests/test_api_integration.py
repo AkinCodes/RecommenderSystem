@@ -1,9 +1,3 @@
-"""Comprehensive API integration tests for CinemaScopeAI Recommender.
-
-Uses FastAPI TestClient with mocking so tests pass without a trained model
-or live TMDB credentials.
-"""
-
 import os
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -12,11 +6,6 @@ import pytest
 import torch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 MOCK_MOVIES = [
     {
@@ -38,24 +27,14 @@ VALID_PAYLOAD = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture(scope="module")
 def client():
-    """Lazily import TestClient to avoid model-loading side effects."""
+    # Lazy import to avoid model-loading side effects when .pth is missing
     from fastapi.testclient import TestClient
 
     from api.app import app
 
     return TestClient(app)
-
-
-# ---------------------------------------------------------------------------
-# Root & Health
-# ---------------------------------------------------------------------------
 
 
 class TestRootEndpoint:
@@ -88,11 +67,6 @@ class TestHealthEndpoint:
         assert isinstance(data["version"], str)
 
 
-# ---------------------------------------------------------------------------
-# Model Info
-# ---------------------------------------------------------------------------
-
-
 class TestModelInfoEndpoint:
     def test_models_returns_200_or_503(self, client):
         resp = client.get("/api/v1/models")
@@ -120,16 +94,8 @@ class TestModelInfoEndpoint:
             assert "detail" in data
 
 
-# ---------------------------------------------------------------------------
-# Predict — valid requests
-# ---------------------------------------------------------------------------
-
-
 class TestPredictValid:
-    """Tests that mock the model so predictions work even without a .pth file."""
-
     def _mock_predict(self, client, payload):
-        """Helper: patch model_loaded, model, and fetch_real_movies."""
         import api.app as app_module
 
         fake_model = MagicMock()
@@ -144,7 +110,6 @@ class TestPredictValid:
             return client.post("/api/v1/predict", json=payload)
 
     def test_predict_returns_list(self, client):
-        """POST /api/v1/predict with valid input returns a list of movies."""
         resp = self._mock_predict(client, VALID_PAYLOAD)
         assert resp.status_code == 200
         data = resp.json()
@@ -152,7 +117,6 @@ class TestPredictValid:
         assert len(data) <= 5
 
     def test_predict_movie_schema(self, client):
-        """Each returned movie has all required fields."""
         resp = self._mock_predict(client, VALID_PAYLOAD)
         assert resp.status_code == 200
         for movie in resp.json():
@@ -166,15 +130,9 @@ class TestPredictValid:
             assert "summary" in movie
 
     def test_predict_at_most_five(self, client):
-        """Even with 10 movies from TMDB, only 5 are returned."""
         resp = self._mock_predict(client, VALID_PAYLOAD)
         assert resp.status_code == 200
         assert len(resp.json()) == 5
-
-
-# ---------------------------------------------------------------------------
-# Predict — invalid requests
-# ---------------------------------------------------------------------------
 
 
 class TestPredictInvalid:
@@ -277,14 +235,8 @@ class TestPredictInvalid:
         assert resp.status_code == 422
 
 
-# ---------------------------------------------------------------------------
-# Recommend
-# ---------------------------------------------------------------------------
-
-
 class TestRecommendEndpoint:
     def test_recommend_known_user_or_503(self, client):
-        """If model is loaded and serving_context exists, known user gets recs."""
         resp = client.get("/api/v1/recommend/1")
         # 503 if model/context not loaded, 200 if known, cold-start dict if unknown
         assert resp.status_code in (200, 503)
@@ -295,7 +247,6 @@ class TestRecommendEndpoint:
             assert isinstance(data["recommendations"], list)
 
     def test_recommend_unknown_user_cold_start(self, client):
-        """An unknown user_id should trigger cold-start fallback or 404/503."""
         resp = client.get("/api/v1/recommend/999999")
         assert resp.status_code in (200, 404, 503)
         if resp.status_code == 200:
@@ -305,16 +256,10 @@ class TestRecommendEndpoint:
             assert "recommendations" in data
 
     def test_recommend_top_k_param(self, client):
-        """top_k query parameter should limit results."""
         resp = client.get("/api/v1/recommend/1?top_k=3")
         if resp.status_code == 200:
             data = resp.json()
             assert len(data["recommendations"]) <= 3
-
-
-# ---------------------------------------------------------------------------
-# Structured Errors
-# ---------------------------------------------------------------------------
 
 
 class TestStructuredErrors:
@@ -329,12 +274,10 @@ class TestStructuredErrors:
         assert data["detail"] == "Not Found"
 
     def test_method_not_allowed(self, client):
-        """PUT on a GET-only endpoint should return 405."""
         resp = client.put("/health")
         assert resp.status_code == 405
 
     def test_custom_http_exception_structured(self, client):
-        """Endpoints that raise HTTPException return structured errors."""
         # Trigger a 503 by hitting predict without a loaded model
         payload = {
             "continuous_features": [0.5] * 8,
