@@ -6,7 +6,7 @@ import pytest
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from data.preprocessing import validate_raw_data, validate_splits
+from data.preprocessing import PrepConfig, validate_raw_data, validate_splits
 
 
 def _make_valid_data(n=1500):
@@ -63,11 +63,11 @@ class TestValidateRawData:
     def test_too_few_ratings_raises(self):
         data = _make_valid_data(n=50)
         with pytest.raises(ValueError, match="only 50 ratings"):
-            validate_raw_data(data, min_ratings=100)
+            validate_raw_data(data, config=PrepConfig(min_ratings=100))
 
     def test_custom_min_ratings_respected(self):
         data = _make_valid_data(n=50)
-        validate_raw_data(data, min_ratings=10)  # should pass
+        validate_raw_data(data, config=PrepConfig(min_ratings=10))  # should pass
 
 
 class TestValidateSplits:
