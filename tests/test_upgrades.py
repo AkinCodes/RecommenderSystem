@@ -1,10 +1,11 @@
 """Tests for PrepConfig and DLRM interaction upgrade."""
 
+import os
+import sys
+
 import numpy as np
 import pytest
 import torch
-import sys
-import os
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -39,7 +40,7 @@ class TestPrepConfig:
         validate_raw_data(raw, config=config)  # should not raise
 
     def test_backward_compat_constants(self):
-        from data.preprocessing import NUM_FEATURES, RATING_MAX, LIKE_THRESHOLD
+        from data.preprocessing import LIKE_THRESHOLD, NUM_FEATURES, RATING_MAX
         assert NUM_FEATURES == 8
         assert RATING_MAX == 5.0
         assert LIKE_THRESHOLD == 4
