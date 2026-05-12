@@ -1,7 +1,11 @@
 """Shared preprocessing functions for MovieLens data."""
 
+from __future__ import annotations
+
+from dataclasses import dataclass
 import logging
 import os
+from typing import Optional
 
 import numpy as np
 
@@ -15,8 +19,22 @@ MIN_INTERACTIONS_WARN = 5  # warn if a user/item has fewer than this many rating
 MAX_RATING_VAR = 4.0  # max possible variance for integer ratings in [1, 5]
 
 
-def validate_raw_data(raw: np.ndarray, min_ratings: int = MIN_RATINGS) -> None:
+@dataclass
+class PrepConfig:
+    """Centralised preprocessing parameters."""
+
+    num_features: int = NUM_FEATURES
+    rating_max: float = RATING_MAX
+    like_threshold: int = LIKE_THRESHOLD
+    min_ratings: int = MIN_RATINGS
+    min_interactions_warn: int = MIN_INTERACTIONS_WARN
+    max_rating_var: float = MAX_RATING_VAR
+    train_ratio: float = 0.8
+
+
+def validate_raw_data(raw: np.ndarray, config: Optional[PrepConfig] = None) -> None:
     """Validate the raw ratings array; raises ValueError on any issue."""
+    config = config or PrepConfig()
     if raw.size == 0:
         raise ValueError("Data is empty — received a 0-length array.")
 
@@ -53,28 +71,28 @@ def validate_raw_data(raw: np.ndarray, min_ratings: int = MIN_RATINGS) -> None:
         raise ValueError(f"Non-positive item IDs found: {bad.tolist()}.")
 
     n = len(raw)
-    if n < min_ratings:
+    if n < config.min_ratings:
         raise ValueError(
-            f"Dataset has only {n} ratings, need at least {min_ratings}."
+            f"Dataset has only {n} ratings, need at least {config.min_ratings}."
         )
 
     unique_users, user_counts = np.unique(user_ids, return_counts=True)
-    sparse_users = unique_users[user_counts < MIN_INTERACTIONS_WARN]
+    sparse_users = unique_users[user_counts < config.min_interactions_warn]
     if len(sparse_users) > 0:
         logger.warning(
             "%d user(s) have fewer than %d ratings (e.g. user_ids %s).",
             len(sparse_users),
-            MIN_INTERACTIONS_WARN,
+            config.min_interactions_warn,
             sparse_users[:5].tolist(),
         )
 
     unique_items, item_counts = np.unique(item_ids, return_counts=True)
-    sparse_items = unique_items[item_counts < MIN_INTERACTIONS_WARN]
+    sparse_items = unique_items[item_counts < config.min_interactions_warn]
     if len(sparse_items) > 0:
         logger.warning(
             "%d item(s) have fewer than %d ratings (e.g. item_ids %s).",
             len(sparse_items),
-            MIN_INTERACTIONS_WARN,
+            config.min_interactions_warn,
             sparse_items[:5].tolist(),
         )
 
@@ -220,12 +238,13 @@ def validate_splits(train_raw: np.ndarray, test_raw: np.ndarray,
     )
 
 
-def prepare_splits(raw: np.ndarray):
-    """Timestamp-based 80/20 split with feature engineering."""
+def prepare_splits(raw: np.ndarray, config: Optional[PrepConfig] = None):
+    """Timestamp-based split with feature engineering."""
+    config = config or PrepConfig()
     sorted_idx = np.argsort(raw[:, 3])
     raw = raw[sorted_idx]
 
-    split = int(len(raw) * 0.8)
+    split = int(len(raw) * config.train_ratio)
     train_raw = raw[:split]
     test_raw = raw[split:]
 

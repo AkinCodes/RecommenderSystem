@@ -1,5 +1,7 @@
 """Deep Learning Recommendation Model (DLRM)."""
 
+from __future__ import annotations
+
 import logging
 import os
 
@@ -25,7 +27,8 @@ class DLRMModel(nn.Module):
         )
 
         total_embedding_size = sum(emb.embedding_dim for emb in self.embeddings)
-        mlp_input_dim = self.continuous_layer.out_features + total_embedding_size
+        interaction_size = self.embeddings[0].embedding_dim if len(self.embeddings) >= 2 else 0
+        mlp_input_dim = self.continuous_layer.out_features + total_embedding_size + interaction_size
 
         layers: list[nn.Module] = [nn.Linear(mlp_input_dim, mlp_layers[1]), nn.ReLU(), nn.Dropout(dropout)]
         for i in range(1, len(mlp_layers) - 1):
@@ -58,7 +61,11 @@ class DLRMModel(nn.Module):
         logger.debug("Continuous shape: %s", x.shape)
         logger.debug("Categorical embeddings: %d tensors", len(cat_embeds))
 
-        x = torch.cat([x] + cat_embeds, dim=1)
+        if len(cat_embeds) >= 2:
+            interaction = cat_embeds[0] * cat_embeds[1]
+            x = torch.cat([x] + cat_embeds + [interaction], dim=1)
+        else:
+            x = torch.cat([x] + cat_embeds, dim=1)
 
         if x.shape[-1] != self.mlp[0].in_features:
             raise ValueError(
