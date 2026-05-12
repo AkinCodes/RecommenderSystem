@@ -10,9 +10,9 @@ import onnxruntime as ort
 import torch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from data.preprocessing import NUM_FEATURES
 from models.dlrm import DLRMModel
 
-NUM_FEATURES = 2
 EMBEDDING_SIZES = [943, 1682]
 MLP_LAYERS = [128, 64, 32]
 
