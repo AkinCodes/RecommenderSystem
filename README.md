@@ -75,7 +75,7 @@ Five movies, ranked by how well they match your taste profile, each with a poste
 │                                                                     │
 │  continuous features ──► Dense Layer ──────────┐                    │
 │                                                 ├──► MLP ──► Score  │
-│  categorical features ──► Embedding Tables ────┘    [384→64→32→1]  │
+│  categorical features ──► Embedding Tables ────┘    [512→64→32→1]  │
 │                                                      + Sigmoid      │
 │                                                      → [0.0, 1.0]  │
 └──────────────────────────┬──────────────────────────────────────────┘
@@ -97,7 +97,7 @@ Five movies, ranked by how well they match your taste profile, each with a poste
 **Step by step:**
 
 1. **You send preferences** — 8 continuous features (engineered stats like average rating, activity, item popularity) and 2 categorical features (user ID and item ID).
-2. **DLRM processes them** — the model takes your 8 continuous features through a dense layer and your category choices through separate embedding tables (`[943, 1682]`, each 128-dim). Then everything gets concatenated and pushed through a multi-layer perceptron (384 → 64 → 32 neurons) with Dropout(0.2) that outputs a single score between 0 and 1.
+2. **DLRM processes them** — the model takes your 8 continuous features through a dense layer and your category choices through separate embedding tables (`[943, 1682]`, each 128-dim). It also computes an element-wise user × item interaction (the two embedding vectors multiplied together). Everything gets concatenated and pushed through a multi-layer perceptron (512 → 64 → 32 neurons) with Dropout(0.2) that outputs a single score between 0 and 1.
 3. **Real movies get fetched** — the API calls TMDB asynchronously to grab currently popular movies with their metadata.
 4. **Results get ranked** — movies are sorted by how well their TMDB rating aligns with the model's prediction score, and the top 5 are returned with titles, posters, release years, and summaries.
 
@@ -111,7 +111,8 @@ The DLRM (Deep Learning Recommendation Model) is built from scratch in PyTorch. 
 
 - **Handles mixed feature types** — 8 continuous features (engineered user/item stats) go through a dense layer, while categorical features (user ID, item ID) each get their own embedding table. This is how real recommendation systems at companies like Meta handle the mix of "how much" and "which one" data.
 - **Embedding tables** — `[943, 1682]` — two embedding tables (users, items), each 128-dimensional.
-- **MLP interaction layer** — a 3-layer network (384 → 64 → 32) with ReLU activations and Dropout(0.2) that learns how continuous and categorical signals interact.
+- **Explicit feature interaction** — computes element-wise user × item embedding product before the MLP, capturing direct collaborative filtering signal.
+- **MLP interaction layer** — a 3-layer network (512 → 64 → 32) with ReLU activations and Dropout(0.2) that learns how continuous features, embeddings, and their interaction combine.
 - **Binary classification** — ratings >= 4 are positive, trained with BCELoss. Sigmoid output produces a score between 0 and 1.
 - **Regularization** — Dropout(0.2), weight decay (1e-5), early stopping (patience=5).
 - **Input validation** — the forward pass checks for None inputs, mismatched feature counts, and MLP shape mismatches, raising clear errors instead of crashing silently.
@@ -135,7 +136,7 @@ The DLRM (Deep Learning Recommendation Model) is built from scratch in PyTorch. 
 - **Makefile** — one command for anything: `make run`, `make test`, `make lint`, `make docker-build`.
 - **uv for dependency management** — fast, reproducible installs via `pyproject.toml`.
 - **Docker with health checks** — production Dockerfile includes a `HEALTHCHECK` directive that pings `/health` every 30 seconds.
-- **Comprehensive tests** — 42 tests covering model forward passes, API endpoints, input validation, edge cases (empty batches, wrong types, missing fields), and structured error responses.
+- **Comprehensive tests** — 71 tests covering model forward passes, API endpoints, input validation, edge cases (empty batches, wrong types, missing fields), structured error responses, preprocessing config, and DLRM interaction verification.
 - **Ruff for linting** — fast Python linting and formatting with a 120-char line length.
 
 ---
@@ -169,14 +170,14 @@ See [EVALUATION.md](EVALUATION.md) for full ablation studies, failure analysis, 
 | Dataset | MovieLens 100K (100,000 ratings, 943 users, 1,682 items) |
 | Embeddings | `[943, 1682]` x 128-dim (user, item) |
 | Continuous features | 8 dense features → Linear(8, 128) |
-| MLP | `[384 → 64 → 32]` with ReLU + Dropout(0.2) between layers |
+| MLP | `[512 → 64 → 32]` with ReLU + Dropout(0.2) between layers |
 | Output | Linear(32, 1) → Sigmoid |
 | Loss | BCELoss (binary: rating >= 4 is positive) |
 | Optimizer | Adam (lr=0.001, weight_decay=1e-5) |
 | Scheduler | ReduceLROnPlateau (patience=3, factor=0.5) |
 | Regularization | Dropout 0.2, early stopping (patience=5) |
 | Training | 20 epochs max, batch_size=256 |
-| Parameters | ~363K total (~93% embeddings, ~7% MLP + dense layers) |
+| Parameters | ~372K total (~90% embeddings, ~10% MLP + dense layers) |
 
 ### Input Features (8 total)
 
@@ -195,13 +196,13 @@ See [EVALUATION.md](EVALUATION.md) for full ablation studies, failure analysis, 
 
 | Metric | Value |
 |--------|-------|
-| NDCG@10 | 0.6558 |
-| Precision@10 | 0.5731 |
-| Recall@10 | 0.3793 |
-| HitRate@10 | 0.9894 |
-| AUC | 0.5481 |
+| NDCG@10 | 0.6723 |
+| Precision@10 | 0.5774 |
+| Recall@10 | 0.3758 |
+| HitRate@10 | 0.9965 |
+| AUC | 0.5541 |
 
-> Evaluated on 283 held-out users, 20K test ratings. Train time: ~13s. Inference latency: ~0.13ms/user.
+> Evaluated on 283 held-out users, 20K test ratings. Train time: ~13s. Inference latency: ~0.05ms/user.
 
 ### Classical Baselines Comparison
 
@@ -210,7 +211,7 @@ See [EVALUATION.md](EVALUATION.md) for full ablation studies, failure analysis, 
 | **LogReg** | StandardScaler → Logistic Regression (C=1.0, lbfgs) on 8 features | **0.8023** | **0.6880** | **1.0000** |
 | XGBoost | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 features | 0.7836 | 0.6707 | 1.0000 |
 | LightGBM | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 features | 0.7820 | 0.6661 | 0.9965 |
-| DLRM | Learned user/item embeddings (128-dim) + 3-layer MLP | 0.6558 | 0.5731 | 0.9894 |
+| DLRM | Learned user/item embeddings (128-dim) + interaction + 3-layer MLP | 0.6723 | 0.5774 | 0.9965 |
 
 ### Serving Architecture
 
@@ -344,11 +345,11 @@ Returns details about the loaded DLRM model.
 ```json
 {
   "architecture": "DLRM (Deep Learning Recommendation Model)",
-  "num_parameters": 363905,
+  "num_parameters": 372097,
   "device": "cpu",
   "num_continuous_features": 8,
   "num_categorical_features": 2,
-  "mlp_layers": [384, 64, 32]
+  "mlp_layers": [512, 64, 32]
 }
 ```
 
@@ -517,34 +518,43 @@ The app will still start without them, but `model_loaded` will be true and predi
 ```
 RecommenderSystem/
 ├── api/
-│   └── app.py                 # FastAPI app — endpoints, middleware, TMDB client, error handling
+│   └── app.py                      # FastAPI app — endpoints, middleware, TMDB client, error handling
 ├── models/
 │   ├── __init__.py
-│   └── dlrm.py                # DLRM model — embeddings, dense layers, MLP, forward pass
+│   ├── dlrm.py                     # DLRM model — embeddings, interaction, MLP, forward pass
+│   └── classical.py                # Classical baselines (XGBoost, LightGBM, LogReg)
+├── data/
+│   ├── preprocessing.py            # Shared preprocessing — PrepConfig, validation, feature engineering
+│   └── ml-100k/                    # MovieLens 100K dataset
 ├── scripts/
-│   ├── train.py               # Training loop with early stopping and W&B logging
-│   └── inference.py           # Standalone inference script for testing the model locally
-├── configs/
-│   └── config.yaml            # Hyperparameters — features, layers, learning rate, epochs
+│   ├── train_movielens.py          # Train DLRM on MovieLens with W&B logging
+│   ├── retrain_and_compare.py      # Train DLRM + 3 classical baselines, generate comparison report
+│   ├── run_experiment.py           # A/B experiment runner (Welch's t-test, Cohen's d, power analysis)
+│   ├── experiment_framework.py     # A/B testing framework — statistical comparison engine
+│   ├── baseline_comparison.py      # Heuristic baselines (random, popular, user-mean) vs DLRM
+│   ├── benchmark_inference.py      # PyTorch vs ONNX inference latency benchmarks
+│   ├── drift_detection.py          # Data drift detection between train/test distributions
+│   ├── fairness_analysis.py        # Fairness audit — popularity bias, user activity gap, diversity
+│   ├── export_onnx.py              # Export DLRM to ONNX format
+│   └── train.py                    # Demo training script with synthetic data
 ├── tests/
-│   ├── __init__.py
-│   └── test_model.py          # Model unit tests, API integration, error handling
-├── data/
-│   └── netflix_titles.csv     # Dataset for experimentation
-├── docker/
-│   └── Dockerfile             # Lightweight Dockerfile (Python 3.9, pip)
-├── .github/
-│   └── workflows/ci.yml       # GitHub Actions CI pipeline — lint + test on push to main
-├── Dockerfile                 # Production Dockerfile (Python 3.11, uv, health checks)
-├── Makefile                   # Dev shortcuts — install, run, test, lint, docker, clean
-├── pyproject.toml             # Project metadata, dependencies, tool config (ruff, pytest)
+│   ├── test_api_integration.py     # 31 API endpoint tests (predict, recommend, errors, health)
+│   ├── test_model.py               # 20 DLRM unit tests + API mock tests
+│   ├── test_upgrades.py            # 10 tests for PrepConfig + interaction feature
+│   └── test_validation.py          # 11 tests for data validation and split checks
+├── reports/
+│   └── model_comparison.json       # Benchmark results (DLRM vs XGBoost vs LightGBM vs LogReg)
+├── configs/
+│   └── config.yaml                 # Hyperparameters — features, layers, learning rate, epochs
 ├── deploy/
-│   ├── task-definition.json   # AWS ECS Fargate task definition
-│   └── trust-policy.json      # AWS IAM trust policy for ECS execution role
-├── .env.example               # Template for required environment variables
-├── data/
-│   └── preprocessing.py       # Shared feature engineering (prevents train/serve skew)
-└── README.md                  # You are here
+│   ├── task-definition.json        # AWS ECS Fargate task definition
+│   └── trust-policy.json           # AWS IAM trust policy for ECS execution role
+├── Dockerfile                      # Production Dockerfile (Python 3.11, uv, health checks)
+├── Makefile                        # Dev shortcuts — install, run, test, lint, docker, clean
+├── pyproject.toml                  # Project metadata, dependencies, tool config (ruff, pytest)
+├── EVALUATION.md                   # Full ablation studies and reproduction instructions
+├── .env.example                    # Template for required environment variables
+└── README.md                       # You are here
 ```
 
 ---
@@ -586,10 +596,9 @@ aws ecs update-service --cluster your-cluster --service your-service --force-new
 
 ## What I'd Improve Next
 
-- **Two-tower retrieval stage** — add a candidate generation model with FAISS for ANN search, feeding into the DLRM ranker. This is the standard two-stage architecture used in production at Spotify, YouTube, and Pinterest.
 - **Sequential model** — add SASRec or BERT4Rec to capture temporal user behavior (what the user watched recently, not just aggregate stats)
 - **Genre features in DLRM** — genre data is already loaded but not used in training. Adding content features would improve cold-start for items.
-- **Diversity and coverage metrics** — track catalog coverage, intra-list diversity, and novelty alongside accuracy metrics
+- **Negative sampling** — explicit hard-negative mining during training to improve ranking quality
 - **Feature store** — replace the pickle-based serving context with a feature store (Feast/Redis) for fresh user features
 - **Model versioning** — track which model version served each prediction for reproducibility
 - **Rate limiting** — protect the TMDB integration from getting throttled under heavy load
