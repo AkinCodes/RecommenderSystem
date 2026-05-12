@@ -33,7 +33,7 @@ class ExperimentConfig:
     model_b_epochs: int = 20
 
     # Shared settings
-    num_features: int = 2
+    num_features: int = 8
     batch_size: int = 256
     device: str = "cpu"
     primary_metric: str = "NDCG@10"
@@ -67,16 +67,16 @@ class ExperimentResult:
             "config_name": self.config.name,
             "model_a_name": self.config.model_a_name,
             "model_b_name": self.config.model_b_name,
-            "model_a_metrics": self.model_a_metrics,
-            "model_b_metrics": self.model_b_metrics,
-            "model_a_train_time": self.model_a_train_time,
-            "model_b_train_time": self.model_b_train_time,
-            "t_statistic": self.t_statistic,
-            "p_value": self.p_value,
-            "confidence_interval": list(self.confidence_interval),
-            "cohens_d": self.cohens_d,
-            "statistical_power": self.statistical_power,
-            "is_significant": self.is_significant,
+            "model_a_metrics": {k: float(v) for k, v in self.model_a_metrics.items()},
+            "model_b_metrics": {k: float(v) for k, v in self.model_b_metrics.items()},
+            "model_a_train_time": float(self.model_a_train_time),
+            "model_b_train_time": float(self.model_b_train_time),
+            "t_statistic": float(self.t_statistic),
+            "p_value": float(self.p_value),
+            "confidence_interval": [float(x) for x in self.confidence_interval],
+            "cohens_d": float(self.cohens_d),
+            "statistical_power": float(self.statistical_power),
+            "is_significant": bool(self.is_significant),
             "winner": self.winner,
             "timestamp": self.timestamp,
         }

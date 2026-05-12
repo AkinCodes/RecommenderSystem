@@ -39,7 +39,7 @@ def load_config(path: str) -> ExperimentConfig:
         model_b_mlp_layers=model_b.get("mlp_layers", [128, 64, 32]),
         model_b_lr=model_b.get("learning_rate", 0.001),
         model_b_epochs=model_b.get("epochs", 20),
-        num_features=exp.get("num_features", 2),
+        num_features=exp.get("num_features", 8),
         batch_size=exp.get("batch_size", 256),
         primary_metric=exp.get("primary_metric", "NDCG@10"),
         significance_level=exp.get("significance_level", 0.05),

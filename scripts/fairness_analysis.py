@@ -7,6 +7,10 @@ import numpy as np
 import torch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from data.preprocessing import (
+    NUM_FEATURES, LIKE_THRESHOLD, RATING_MAX, MAX_RATING_VAR,
+    compute_user_stats, compute_item_stats, compute_max_user_days,
+)
 from models.dlrm import DLRMModel
 
 DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ml-100k", "u.data")
@@ -15,7 +19,6 @@ GENRE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ml-100k", "u
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "trained_model_movielens.pth")
 REPORT_PATH = os.path.join(os.path.dirname(__file__), "..", "FAIRNESS_REPORT.md")
 
-NUM_FEATURES = 2
 EMBEDDING_SIZES = [943, 1682]
 MLP_LAYERS = [128, 64, 32]
 K = 10
@@ -35,12 +38,9 @@ def load_and_split():
     user2idx = {uid: i for i, uid in enumerate(all_users)}
     item2idx = {iid: i for i, iid in enumerate(all_items)}
 
-    user_ratings = {}
-    for row in train_raw:
-        uid = row[0]
-        user_ratings.setdefault(uid, []).append(row[2])
-
-    max_count = max(len(v) for v in user_ratings.values()) if user_ratings else 1
+    user_ratings, max_count, user_timestamps = compute_user_stats(train_raw)
+    item_ratings_dict, item_max_count, item_popularity_rank = compute_item_stats(train_raw)
+    max_user_days = compute_max_user_days(user_timestamps)
 
     def make_features(data):
         cont = np.zeros((len(data), NUM_FEATURES), dtype=np.float32)
@@ -50,10 +50,27 @@ def load_and_split():
             uid, iid, rating, _ = row
             cat[i, 0] = user2idx[uid]
             cat[i, 1] = item2idx[iid]
-            targets[i] = rating / 5.0
+            targets[i] = 1.0 if rating >= LIKE_THRESHOLD else 0.0
+
             uratings = user_ratings.get(uid, [3])
-            cont[i, 0] = np.mean(uratings) / 5.0
+            user_mean = np.mean(uratings) / RATING_MAX
+            cont[i, 0] = user_mean
             cont[i, 1] = len(uratings) / max_count
+            cont[i, 2] = np.var(uratings) / MAX_RATING_VAR if len(uratings) > 1 else 0.0
+
+            utimes = user_timestamps.get(uid, [])
+            if len(utimes) > 1:
+                days = (max(utimes) - min(utimes)) / 86400.0
+                cont[i, 3] = days / max_user_days if max_user_days > 0 else 0.0
+            else:
+                cont[i, 3] = 0.0
+
+            iratings = item_ratings_dict.get(iid, [3])
+            item_mean = np.mean(iratings) / RATING_MAX
+            cont[i, 4] = item_mean
+            cont[i, 5] = len(iratings) / item_max_count
+            cont[i, 6] = item_popularity_rank.get(iid, 0.0)
+            cont[i, 7] = (user_mean - item_mean + 1.0) / 2.0
         return cont, cat, targets
 
     train_cont, train_cat, train_targets = make_features(train_raw)
