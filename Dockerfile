@@ -24,6 +24,11 @@ COPY . .
 # Ensure project root is on Python path so data/models/api are importable
 ENV PYTHONPATH=/app
 
+# Download dataset + train model + generate serving artifacts at build time.
+# This produces trained_model_movielens.pth and serving_context.pkl which are
+# gitignored (binary artifacts don't belong in the repo) but required at runtime.
+RUN python scripts/build_for_deploy.py
+
 # Expose FastAPI port
 EXPOSE 8000
 
