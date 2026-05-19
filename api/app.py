@@ -441,16 +441,13 @@ def _build_user_item_features(user_feats, item_indices, item_features, n_feature
     n = len(item_indices)
     cont_np = np.zeros((n, n_features), dtype=np.float32)
 
-    # Broadcast user features across all rows
     cont_np[:, 0:4] = user_feats[0:4]
 
-    # Build item feature matrix
     item_mat = np.zeros((n, 3), dtype=np.float32)
     for i, item_idx in enumerate(item_indices):
         item_mat[i] = item_features.get(item_idx, [0.6, 0.0, 0.0])
     cont_np[:, 4:7] = item_mat
 
-    # Interaction: normalised deviation between user avg and item avg rating
     cont_np[:, 7] = (user_feats[0] - item_mat[:, 0] + 1.0) / 2.0
 
     return torch.tensor(cont_np, dtype=torch.float32)

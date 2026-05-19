@@ -134,3 +134,58 @@ class TestDLRMInteraction:
         cat = torch.tensor([[0], [1], [2], [3]], dtype=torch.long)
         out = model(cont, cat)
         assert out.shape == (4, 1)
+
+
+class TestBuildUserItemFeatures:
+    def test_output_shape(self):
+        from api.app import _build_user_item_features
+        user_feats = [0.6, 0.15, 0.08, 0.34]
+        item_features = {0: [0.7, 0.5, 0.8], 1: [0.4, 0.2, 0.3]}
+        result = _build_user_item_features(user_feats, [0, 1], item_features, 8)
+        assert result.shape == (2, 8)
+        assert result.dtype == torch.float32
+
+    def test_user_features_broadcast(self):
+        from api.app import _build_user_item_features
+        user_feats = [0.6, 0.15, 0.08, 0.34]
+        item_features = {0: [0.5, 0.3, 0.7], 1: [0.5, 0.3, 0.7]}
+        result = _build_user_item_features(user_feats, [0, 1], item_features, 8)
+        assert result[0, 0].item() == pytest.approx(0.6)
+        assert result[1, 0].item() == pytest.approx(0.6)
+        assert result[0, 3].item() == pytest.approx(0.34)
+        assert result[1, 3].item() == pytest.approx(0.34)
+
+    def test_item_features_per_row(self):
+        from api.app import _build_user_item_features
+        user_feats = [0.5, 0.5, 0.5, 0.5]
+        item_features = {0: [0.9, 0.1, 0.2], 1: [0.3, 0.8, 0.6]}
+        result = _build_user_item_features(user_feats, [0, 1], item_features, 8)
+        assert result[0, 4].item() == pytest.approx(0.9)
+        assert result[1, 4].item() == pytest.approx(0.3)
+        assert result[0, 6].item() == pytest.approx(0.2)
+        assert result[1, 6].item() == pytest.approx(0.6)
+
+    def test_interaction_feature(self):
+        from api.app import _build_user_item_features
+        user_feats = [0.8, 0.5, 0.5, 0.5]
+        item_features = {0: [0.6, 0.5, 0.5], 1: [0.2, 0.5, 0.5]}
+        result = _build_user_item_features(user_feats, [0, 1], item_features, 8)
+        expected_0 = (0.8 - 0.6 + 1.0) / 2.0
+        expected_1 = (0.8 - 0.2 + 1.0) / 2.0
+        assert result[0, 7].item() == pytest.approx(expected_0)
+        assert result[1, 7].item() == pytest.approx(expected_1)
+
+    def test_missing_item_uses_default(self):
+        from api.app import _build_user_item_features
+        user_feats = [0.5, 0.5, 0.5, 0.5]
+        item_features = {}
+        result = _build_user_item_features(user_feats, [999], item_features, 8)
+        assert result[0, 4].item() == pytest.approx(0.6)
+        assert result[0, 5].item() == pytest.approx(0.0)
+        assert result[0, 6].item() == pytest.approx(0.0)
+
+    def test_empty_items(self):
+        from api.app import _build_user_item_features
+        user_feats = [0.5, 0.5, 0.5, 0.5]
+        result = _build_user_item_features(user_feats, [], {}, 8)
+        assert result.shape == (0, 8)
