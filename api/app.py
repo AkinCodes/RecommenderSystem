@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from data.preprocessing import load_item_metadata
+from data.preprocessing import load_item_metadata, load_movielens_data
 from models.dlrm import DLRMModel
 
 try:
@@ -195,18 +195,53 @@ if os.path.exists(os.path.join(DATA_DIR, "u.item")):
 else:
     logger.warning("Item metadata file not found at '%s/u.item'.", DATA_DIR)
 
+# Training-set popularity + per-user liked-item history (train split only).
+# Loaded once at startup; powers a popularity-ranked cold-start fallback and
+# in-space (item-embedding) retrieval in /recommend_v2.
+item_train_counts: dict[int, int] = {}
+user_history: dict[int, list[int]] = {}
+_data_file = os.path.join(DATA_DIR, "u.data")
+if serving_context is not None and os.path.exists(_data_file):
+    try:
+        _raw = load_movielens_data(_data_file)
+        _sorted = _raw[np.argsort(_raw[:, 3])]            # sort by timestamp
+        _train = _sorted[: int(len(_sorted) * 0.8)]       # same 80% split used in training
+        _u2i = serving_context["user2idx"]
+        _i2i = serving_context["item2idx"]
+        for _row in _train:
+            _uid, _iid, _rating = int(_row[0]), int(_row[1]), float(_row[2])
+            item_train_counts[_iid] = item_train_counts.get(_iid, 0) + 1
+            if _rating >= 4 and _uid in _u2i and _iid in _i2i:
+                user_history.setdefault(_u2i[_uid], []).append(_i2i[_iid])
+        logger.info(
+            "Train popularity (%d items) and user history (%d users) loaded.",
+            len(item_train_counts), len(user_history),
+        )
+    except Exception as exc:
+        logger.error("Failed to build popularity/history: %s", exc, exc_info=True)
+
 popular_items: list[dict] = []
 if item_metadata:
-    popular_ids = sorted(item_metadata.keys())[:50]
+    # Rank cold-start items by ACTUAL training interaction count (popularity),
+    # not by item id. Items unseen in training sort last (count 0).
+    popular_ids = sorted(
+        item_metadata.keys(),
+        key=lambda _iid: item_train_counts.get(int(_iid), 0),
+        reverse=True,
+    )[:50]
     popular_items = [
         {
-            "item_id": int(iid), "score": 0.0,
+            "item_id": int(iid),
+            "score": float(item_train_counts.get(int(iid), 0)),
             "title": item_metadata[iid]["title"],
             "genres": item_metadata[iid]["genres"],
         }
         for iid in popular_ids
     ]
-    logger.info("Cold-start fallback ready: %d popular items.", len(popular_items))
+    logger.info(
+        "Cold-start fallback ready: %d popular items (ranked by train count).",
+        len(popular_items),
+    )
 
 # Faiss ANN for sub-millisecond candidate generation
 faiss_index = None
@@ -529,14 +564,25 @@ async def recommend_v2(user_id: int, top_k: int = 10, num_candidates: int = 100)
 
     stage1_start = time.perf_counter()
 
-    user_emb = model.embeddings[0](torch.tensor([user_idx])).detach().numpy().astype(np.float32)
-    user_emb_norm = user_emb / (np.linalg.norm(user_emb) or 1.0)
+    # Retrieve from the item-embedding index using the centroid of the user's
+    # liked items, so the query and the index share the SAME trained space.
+    # The DLRM trains user/item embeddings through an MLP interaction, not a
+    # shared dot-product space, so querying with the raw user embedding is only
+    # a heuristic; we keep it as a fallback for users with no liked history.
+    liked = user_history.get(user_idx, [])
+    if liked and item_embeddings_np is not None:
+        query_vec = item_embeddings_np[liked].mean(axis=0, keepdims=True).astype(np.float32)
+        retrieval_method = "item-centroid"
+    else:
+        query_vec = model.embeddings[0](torch.tensor([user_idx])).detach().numpy().astype(np.float32)
+        retrieval_method = "user-embedding-fallback"
+    query_vec = (query_vec / (np.linalg.norm(query_vec) or 1.0)).astype(np.float32)
 
     if FAISS_AVAILABLE:
-        _, candidate_indices = faiss_index.search(user_emb_norm, num_candidates)
+        _, candidate_indices = faiss_index.search(query_vec, num_candidates)
         candidate_indices = candidate_indices[0].tolist()
     else:
-        distances, indices = faiss_index.kneighbors(user_emb_norm, n_neighbors=num_candidates)
+        distances, indices = faiss_index.kneighbors(query_vec, n_neighbors=num_candidates)
         candidate_indices = indices[0].tolist()
 
     stage1_ms = (time.perf_counter() - stage1_start) * 1000
@@ -580,6 +626,7 @@ async def recommend_v2(user_id: int, top_k: int = 10, num_candidates: int = 100)
         "user_id": user_id,
         "recommendations": results,
         "pipeline": "two-stage",
+        "retrieval": retrieval_method,
         "num_candidates": num_candidates,
         "latency_ms": {
             "stage1_ann": round(stage1_ms, 2),
