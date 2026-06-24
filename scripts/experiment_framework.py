@@ -20,14 +20,16 @@ class ExperimentConfig:
 
     # Model A (control) settings
     model_a_name: str = "baseline"
-    model_a_embedding_sizes: list[int] = field(default_factory=lambda: [943, 1682])
+    model_a_cardinalities: list[int] = field(default_factory=lambda: [943, 1682])
+    model_a_embedding_dim: int = 64
     model_a_mlp_layers: list[int] = field(default_factory=lambda: [64, 32, 16])
     model_a_lr: float = 0.001
     model_a_epochs: int = 10
 
     # Model B (treatment) settings
     model_b_name: str = "dlrm"
-    model_b_embedding_sizes: list[int] = field(default_factory=lambda: [943, 1682])
+    model_b_cardinalities: list[int] = field(default_factory=lambda: [943, 1682])
+    model_b_embedding_dim: int = 64
     model_b_mlp_layers: list[int] = field(default_factory=lambda: [128, 64, 32])
     model_b_lr: float = 0.001
     model_b_epochs: int = 20
@@ -129,12 +131,13 @@ class ExperimentRunner:
         self.config = config
         self.result = ExperimentResult(config=config)
 
-    def _build_model(self, embedding_sizes, mlp_layers):
+    def _build_model(self, cardinalities, embedding_dim, mlp_layers):
         from models.dlrm import DLRMModel
 
         return DLRMModel(
             num_features=self.config.num_features,
-            embedding_sizes=embedding_sizes,
+            cardinalities=cardinalities,
+            embedding_dim=embedding_dim,
             mlp_layers=mlp_layers,
         )
 
@@ -264,14 +267,22 @@ class ExperimentRunner:
         train_loader = DataLoader(train_ds, batch_size=self.config.batch_size, shuffle=True)
 
         print(f"\n  Training {self.config.model_a_name}...")
-        model_a = self._build_model(self.config.model_a_embedding_sizes, self.config.model_a_mlp_layers)
+        model_a = self._build_model(
+            self.config.model_a_cardinalities,
+            self.config.model_a_embedding_dim,
+            self.config.model_a_mlp_layers,
+        )
         self.result.model_a_train_time = self._train_model(
             model_a, train_loader, self.config.model_a_lr, self.config.model_a_epochs
         )
         print(f"    Done in {self.result.model_a_train_time:.1f}s")
 
         print(f"  Training {self.config.model_b_name}...")
-        model_b = self._build_model(self.config.model_b_embedding_sizes, self.config.model_b_mlp_layers)
+        model_b = self._build_model(
+            self.config.model_b_cardinalities,
+            self.config.model_b_embedding_dim,
+            self.config.model_b_mlp_layers,
+        )
         self.result.model_b_train_time = self._train_model(
             model_b, train_loader, self.config.model_b_lr, self.config.model_b_epochs
         )
@@ -314,11 +325,19 @@ class ExperimentRunner:
         train_ds = MovieLensDataset(train_cont, train_cat, train_targets)
         train_loader = DataLoader(train_ds, batch_size=self.config.batch_size, shuffle=True)
 
-        model_a = self._build_model(self.config.model_a_embedding_sizes, self.config.model_a_mlp_layers)
+        model_a = self._build_model(
+            self.config.model_a_cardinalities,
+            self.config.model_a_embedding_dim,
+            self.config.model_a_mlp_layers,
+        )
         self.result.model_a_train_time = self._train_model(
             model_a, train_loader, self.config.model_a_lr, self.config.model_a_epochs
         )
-        model_b = self._build_model(self.config.model_b_embedding_sizes, self.config.model_b_mlp_layers)
+        model_b = self._build_model(
+            self.config.model_b_cardinalities,
+            self.config.model_b_embedding_dim,
+            self.config.model_b_mlp_layers,
+        )
         self.result.model_b_train_time = self._train_model(
             model_b, train_loader, self.config.model_b_lr, self.config.model_b_epochs
         )

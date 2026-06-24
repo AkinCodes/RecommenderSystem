@@ -29,7 +29,8 @@ from models.dlrm import DLRMModel
 DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ml-100k", "u.data")
 MODEL_SAVE_PATH = os.path.join(os.path.dirname(__file__), "..", "trained_model_movielens.pth")
 
-EMBEDDING_SIZES = [943, 1682]
+CARDINALITIES = [943, 1682]
+EMBEDDING_DIM = 64
 MLP_LAYERS = [128, 64, 32]
 EPOCHS = 20
 BATCH_SIZE = 256
@@ -155,7 +156,8 @@ def main():
             "model": "DLRM",
             "dataset": "MovieLens-100K",
             "num_features": NUM_FEATURES,
-            "embedding_sizes": EMBEDDING_SIZES,
+            "cardinalities": CARDINALITIES,
+            "embedding_dim": EMBEDDING_DIM,
             "mlp_layers": MLP_LAYERS,
             "epochs": EPOCHS,
             "batch_size": BATCH_SIZE,
@@ -181,14 +183,15 @@ def main():
     print("\n[2/4] Building model...")
     model = DLRMModel(
         num_features=NUM_FEATURES,
-        embedding_sizes=EMBEDDING_SIZES,
+        cardinalities=CARDINALITIES,
+        embedding_dim=EMBEDDING_DIM,
         mlp_layers=MLP_LAYERS,
         dropout=DROPOUT,
     )
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"  Architecture: num_features={NUM_FEATURES}, "
-          f"embedding_sizes={EMBEDDING_SIZES}, mlp_layers={MLP_LAYERS}")
+          f"cardinalities={CARDINALITIES}, embedding_dim={EMBEDDING_DIM}, mlp_layers={MLP_LAYERS}")
     print(f"  Total parameters:     {total_params:,}")
     print(f"  Trainable parameters: {trainable_params:,}")
 
@@ -335,7 +338,7 @@ def main():
     print("  Model:        DLRM")
     print(f"  Dataset:      MovieLens 100K ({len(raw)} ratings)")
     print(f"  Parameters:   {total_params:,}")
-    print(f"  Embeddings:   user({EMBEDDING_SIZES[0]}x{MLP_LAYERS[0]}), item({EMBEDDING_SIZES[1]}x{MLP_LAYERS[0]})")
+    print(f"  Embeddings:   user({CARDINALITIES[0]}x{EMBEDDING_DIM}), item({CARDINALITIES[1]}x{EMBEDDING_DIM})")
     print(f"  MLP layers:   {MLP_LAYERS}")
     print(f"  Training:     {EPOCHS} epochs in {train_time:.1f}s")
     print(f"  NDCG@10:      {metrics['NDCG@10']:.4f}")

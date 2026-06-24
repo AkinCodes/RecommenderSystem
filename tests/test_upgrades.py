@@ -51,7 +51,8 @@ class TestDLRMInteraction:
         from models.dlrm import DLRMModel
         model = DLRMModel(
             num_features=8,
-            embedding_sizes=[100, 200],
+            cardinalities=[100, 200],
+            embedding_dim=64,
             mlp_layers=[128, 64, 32],
             dropout=0.0,
         )
@@ -64,7 +65,8 @@ class TestDLRMInteraction:
         from models.dlrm import DLRMModel
         model = DLRMModel(
             num_features=8,
-            embedding_sizes=[100, 200],
+            cardinalities=[100, 200],
+            embedding_dim=64,
             mlp_layers=[128, 64, 32],
         )
         cont = torch.randn(4, 8)
@@ -80,7 +82,8 @@ class TestDLRMInteraction:
         from models.dlrm import DLRMModel
         model = DLRMModel(
             num_features=8,
-            embedding_sizes=[100, 200],
+            cardinalities=[100, 200],
+            embedding_dim=64,
             mlp_layers=[128, 64, 32],
         )
         cont = torch.randn(16, 8)
@@ -94,21 +97,22 @@ class TestDLRMInteraction:
         # With interaction, MLP input is larger so more params
         model = DLRMModel(
             num_features=8,
-            embedding_sizes=[100, 200],
+            cardinalities=[100, 200],
+            embedding_dim=64,
             mlp_layers=[128, 64, 32],
         )
         total_params = sum(p.numel() for p in model.parameters())
-        # Original was: continuous(128) + embeds + MLP(128*64 + 64*32) + output
-        # Now MLP first layer is wider by 128 (interaction_size)
-        # MLP input = 128 + 128 + 128 + 128 = 512 (was 384)
-        assert total_params > 70_000
+        # embedding_dim=64: continuous(64) + 2 embeds(64 each) + interaction(64)
+        # => MLP input = 64 + 64 + 64 + 64 = 256, then 128 -> 64 -> 32 -> 1
+        assert total_params > 60_000
 
     def test_interaction_changes_output_value(self):
         from models.dlrm import DLRMModel
         torch.manual_seed(42)
         model = DLRMModel(
             num_features=8,
-            embedding_sizes=[100, 200],
+            cardinalities=[100, 200],
+            embedding_dim=64,
             mlp_layers=[128, 64, 32],
             dropout=0.0,
         )
@@ -126,7 +130,8 @@ class TestDLRMInteraction:
         from models.dlrm import DLRMModel
         model = DLRMModel(
             num_features=8,
-            embedding_sizes=[100],
+            cardinalities=[100],
+            embedding_dim=64,
             mlp_layers=[128, 64, 32],
             dropout=0.0,
         )

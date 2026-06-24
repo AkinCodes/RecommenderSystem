@@ -22,7 +22,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from data.preprocessing import NUM_FEATURES, load_movielens_data, prepare_splits  # noqa: E402
 
-EMBEDDING_SIZES = [943, 1682]
+CARDINALITIES = [943, 1682]
+EMBEDDING_DIM = 64
 MLP_LAYERS = [128, 64, 32]
 
 
@@ -141,7 +142,8 @@ def main(argv=None):
 
     model = DLRMModel(
         num_features=NUM_FEATURES,
-        embedding_sizes=EMBEDDING_SIZES,
+        cardinalities=CARDINALITIES,
+        embedding_dim=EMBEDDING_DIM,
         mlp_layers=MLP_LAYERS,
     )
     model.load_state_dict(

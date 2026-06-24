@@ -13,14 +13,16 @@ experiment:
 
   model_a:
     name: baseline_small
-    embedding_sizes: [943, 1682]
+    cardinalities: [943, 1682]
+    embedding_dim: 64
     mlp_layers: [64, 32, 16]
     learning_rate: 0.001
     epochs: 10
 
   model_b:
     name: dlrm_full
-    embedding_sizes: [943, 1682]
+    cardinalities: [943, 1682]
+    embedding_dim: 64
     mlp_layers: [128, 64, 32]
     learning_rate: 0.001
     epochs: 20

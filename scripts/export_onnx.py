@@ -38,7 +38,8 @@ def load_config(config_path: Path) -> dict:
 def load_pytorch_model(model_path: Path, cfg: dict) -> DLRMModel:
     model = DLRMModel(
         num_features=cfg["num_features"],
-        embedding_sizes=cfg["embedding_sizes"],
+        cardinalities=cfg["cardinalities"],
+        embedding_dim=cfg.get("embedding_dim", 64),
         mlp_layers=cfg["mlp_layers"],
     )
     state_dict = torch.load(model_path, map_location=torch.device("cpu"))
@@ -50,10 +51,10 @@ def load_pytorch_model(model_path: Path, cfg: dict) -> DLRMModel:
 
 def create_dummy_inputs(cfg: dict, batch_size: int = 1):
     continuous = torch.randn(batch_size, cfg["num_features"], dtype=torch.float32)
-    num_categorical = len(cfg["embedding_sizes"])
+    num_categorical = len(cfg["cardinalities"])
     categorical = torch.stack(
         [
-            torch.randint(0, cfg["embedding_sizes"][i], (batch_size,))
+            torch.randint(0, cfg["cardinalities"][i], (batch_size,))
             for i in range(num_categorical)
         ],
         dim=1,
@@ -226,9 +227,10 @@ def main():
 
     cfg = load_config(args.config)
     logger.info(
-        "Model config: num_features=%d, embedding_sizes=%s, mlp_layers=%s",
+        "Model config: num_features=%d, cardinalities=%s, embedding_dim=%s, mlp_layers=%s",
         cfg["num_features"],
-        cfg["embedding_sizes"],
+        cfg["cardinalities"],
+        cfg.get("embedding_dim", 64),
         cfg["mlp_layers"],
     )
 

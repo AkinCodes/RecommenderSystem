@@ -17,21 +17,30 @@ logger = logging.getLogger(__name__)
 class DLRMModel(nn.Module):
     """Deep Learning Recommendation Model."""
 
-    def __init__(self, num_features: int, embedding_sizes: list[int], mlp_layers: list[int], dropout: float = 0.2):
+    def __init__(
+        self,
+        num_features: int,
+        cardinalities: list[int],
+        embedding_dim: int,
+        mlp_layers: list[int],
+        dropout: float = 0.2,
+    ):
         super().__init__()
 
-        self.continuous_layer = nn.Linear(num_features, mlp_layers[0])
+        self.continuous_layer = nn.Linear(num_features, embedding_dim)
 
         self.embeddings = nn.ModuleList(
-            [nn.Embedding(size, mlp_layers[0]) for size in embedding_sizes]
+            [nn.Embedding(cardinality, embedding_dim) for cardinality in cardinalities]
         )
 
         total_embedding_size = sum(emb.embedding_dim for emb in self.embeddings)
         interaction_size = self.embeddings[0].embedding_dim if len(self.embeddings) >= 2 else 0
         mlp_input_dim = self.continuous_layer.out_features + total_embedding_size + interaction_size
 
-        layers: list[nn.Module] = [nn.Linear(mlp_input_dim, mlp_layers[1]), nn.ReLU(), nn.Dropout(dropout)]
-        for i in range(1, len(mlp_layers) - 1):
+        # mlp_layers are now genuine hidden layers: the first Linear maps the concatenated input
+        # down to mlp_layers[0], then we chain through the rest.
+        layers: list[nn.Module] = [nn.Linear(mlp_input_dim, mlp_layers[0]), nn.ReLU(), nn.Dropout(dropout)]
+        for i in range(len(mlp_layers) - 1):
             layers.append(nn.Linear(mlp_layers[i], mlp_layers[i + 1]))
             layers.append(nn.ReLU())
             layers.append(nn.Dropout(dropout))

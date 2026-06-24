@@ -33,7 +33,8 @@ DATA_PATH = os.path.join(PROJECT_ROOT, "data", "ml-100k", "u.data")
 MODEL_SAVE_PATH = os.path.join(PROJECT_ROOT, "trained_model_movielens.pth")
 REPORT_JSON_PATH = os.path.join(PROJECT_ROOT, "reports", "model_comparison.json")
 
-EMBEDDING_SIZES = [943, 1682]
+CARDINALITIES = [943, 1682]
+EMBEDDING_DIM = 64
 MLP_LAYERS = [128, 64, 32]
 EPOCHS = 20
 BATCH_SIZE = 256
@@ -158,14 +159,15 @@ def train_dlrm(train_cont, train_cat, train_targets,
 
     model = DLRMModel(
         num_features=NUM_FEATURES,
-        embedding_sizes=EMBEDDING_SIZES,
+        cardinalities=CARDINALITIES,
+        embedding_dim=EMBEDDING_DIM,
         mlp_layers=MLP_LAYERS,
         dropout=DROPOUT,
     )
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"  Architecture: num_features={NUM_FEATURES}, "
-          f"embedding_sizes={EMBEDDING_SIZES}, mlp_layers={MLP_LAYERS}")
+          f"cardinalities={CARDINALITIES}, embedding_dim={EMBEDDING_DIM}, mlp_layers={MLP_LAYERS}")
     print(f"  Total parameters:     {total_params:,}")
     print(f"  Trainable parameters: {trainable_params:,}")
 
@@ -463,7 +465,8 @@ def main():
         "test_size": int(len(test_raw)),
         "num_features": NUM_FEATURES,
         "dlrm_config": {
-            "embedding_sizes": EMBEDDING_SIZES,
+            "cardinalities": CARDINALITIES,
+            "embedding_dim": EMBEDDING_DIM,
             "mlp_layers": MLP_LAYERS,
             "epochs": EPOCHS,
             "batch_size": BATCH_SIZE,

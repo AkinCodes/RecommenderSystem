@@ -57,7 +57,7 @@ class ModelInputError(Exception):
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "configs", "config.yaml")
 
 REQUIRED_CONFIG_KEYS = {
-    "model": ["num_features", "embedding_sizes", "mlp_layers", "learning_rate", "epochs", "batch_size"],
+    "model": ["num_features", "cardinalities", "mlp_layers", "learning_rate", "epochs", "batch_size"],
 }
 
 
@@ -137,8 +137,8 @@ class ModelInfoResponse(BaseModel):
 
 
 num_continuous_features = model_cfg["num_features"]
-num_categorical_features = len(model_cfg["embedding_sizes"])
-embedding_sizes = model_cfg["embedding_sizes"]
+num_categorical_features = len(model_cfg["cardinalities"])
+cardinalities = model_cfg["cardinalities"]
 
 model_loaded = False
 model: DLRMModel | None = None
@@ -148,7 +148,8 @@ MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "trained_model_moviel
 try:
     model = DLRMModel(
         num_features=num_continuous_features,
-        embedding_sizes=embedding_sizes,
+        cardinalities=cardinalities,
+        embedding_dim=model_cfg.get("embedding_dim", 64),
         mlp_layers=model_cfg["mlp_layers"],
     )
 
@@ -416,13 +417,13 @@ async def predict(request: PredictionRequest):
             status_code=400,
             detail=(
                 f"Expected {num_categorical_features} categorical features "
-                f"(user_id 0-{embedding_sizes[0] - 1}, item_id 0-{embedding_sizes[1] - 1}), "
+                f"(user_id 0-{cardinalities[0] - 1}, item_id 0-{cardinalities[1] - 1}), "
                 f"got {len(request.categorical_features)}."
             ),
         )
 
     for i, (val, max_val) in enumerate(
-        zip(request.categorical_features, embedding_sizes)
+        zip(request.categorical_features, cardinalities)
     ):
         if val < 0 or val >= max_val:
             raise HTTPException(

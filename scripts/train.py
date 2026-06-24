@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 class DLRMTrainer(pl.LightningModule):
-    def __init__(self, num_features, embedding_sizes, mlp_layers, lr=1e-3):
+    def __init__(self, num_features, cardinalities, embedding_dim, mlp_layers, lr=1e-3):
         super(DLRMTrainer, self).__init__()
 
-        self.model = DLRMModel(num_features, embedding_sizes, mlp_layers)
+        self.model = DLRMModel(num_features, cardinalities, embedding_dim, mlp_layers)
         self.loss_fn = nn.BCELoss()
         self.lr = lr
 
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     )
 
     model = DLRMTrainer(
-        num_features=10, embedding_sizes=[10, 10, 10, 10, 10], mlp_layers=[64, 32, 16]
+        num_features=10, cardinalities=[10, 10, 10, 10, 10], embedding_dim=16, mlp_layers=[64, 32, 16]
     )
 
     logger.info("Testing Model Forward Pass...")

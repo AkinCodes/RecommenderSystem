@@ -13,7 +13,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from data.preprocessing import NUM_FEATURES
 from models.dlrm import DLRMModel
 
-EMBEDDING_SIZES = [943, 1682]
+CARDINALITIES = [943, 1682]
+EMBEDDING_DIM = 64
 MLP_LAYERS = [128, 64, 32]
 
 BATCH_SIZES = [1, 8, 32, 64, 128, 256]
@@ -99,7 +100,8 @@ def main():
     print("Loading PyTorch model...")
     pt_model = DLRMModel(
         num_features=NUM_FEATURES,
-        embedding_sizes=EMBEDDING_SIZES,
+        cardinalities=CARDINALITIES,
+        embedding_dim=EMBEDDING_DIM,
         mlp_layers=MLP_LAYERS,
     )
     if os.path.exists(args.model_path):
@@ -171,7 +173,8 @@ def main():
         "",
         "## Model",
         "",
-        f"- **Architecture:** DLRM (num_features={NUM_FEATURES}, embeddings={EMBEDDING_SIZES}, mlp={MLP_LAYERS})",
+        f"- **Architecture:** DLRM (num_features={NUM_FEATURES}, "
+        f"cardinalities={CARDINALITIES}, embedding_dim={EMBEDDING_DIM}, mlp={MLP_LAYERS})",
         f"- **Parameters:** {pt_params:,}",
         f"- **ONNX file size:** {onnx_size_kb:.1f} KB",
         "",

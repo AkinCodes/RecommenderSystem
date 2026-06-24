@@ -470,8 +470,9 @@ All hyperparameters live in `configs/config.yaml`:
 | Parameter | Default | What it controls |
 |---|---|---|
 | `num_features` | `10` | Number of continuous input features |
-| `embedding_sizes` | `[10, 10, 10, 10, 10]` | Vocabulary size for each categorical embedding table |
-| `mlp_layers` | `[384, 64, 32]` | Hidden layer dimensions for the interaction MLP |
+| `cardinalities` | `[10, 10, 10, 10, 10]` | Vocabulary size (cardinality) for each categorical embedding table |
+| `embedding_dim` | `64` | Dimension of every embedding vector (decoupled from the MLP) |
+| `mlp_layers` | `[128, 64, 32]` | Hidden layer dimensions for the interaction MLP |
 | `learning_rate` | `0.001` | Adam optimizer learning rate |
 | `epochs` | `5` | Number of training epochs |
 | `batch_size` | `32` | Samples per training batch |

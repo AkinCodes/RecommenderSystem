@@ -19,7 +19,8 @@ GENRE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ml-100k", "u
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "trained_model_movielens.pth")
 REPORT_PATH = os.path.join(os.path.dirname(__file__), "..", "FAIRNESS_REPORT.md")
 
-EMBEDDING_SIZES = [943, 1682]
+CARDINALITIES = [943, 1682]
+EMBEDDING_DIM = 64
 MLP_LAYERS = [128, 64, 32]
 K = 10
 
@@ -131,7 +132,12 @@ def main():
     idx2item = {v: k for k, v in item2idx.items()}
     idx2user = {v: k for k, v in user2idx.items()}
 
-    model = DLRMModel(num_features=NUM_FEATURES, embedding_sizes=EMBEDDING_SIZES, mlp_layers=MLP_LAYERS)
+    model = DLRMModel(
+        num_features=NUM_FEATURES,
+        cardinalities=CARDINALITIES,
+        embedding_dim=EMBEDDING_DIM,
+        mlp_layers=MLP_LAYERS,
+    )
     model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu", weights_only=True))
     model.eval()
     print("Model loaded.\n")

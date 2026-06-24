@@ -11,7 +11,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, PROJECT_ROOT)
 
 from data.preprocessing import NUM_FEATURES, load_movielens_data, prepare_splits  # noqa: E402
-from scripts.train_movielens import EMBEDDING_SIZES, MLP_LAYERS  # noqa: E402
+from scripts.train_movielens import CARDINALITIES, EMBEDDING_DIM, MLP_LAYERS  # noqa: E402
 
 DATA_PATH = os.path.join(PROJECT_ROOT, "data", "ml-100k", "u.data")
 from models.classical import ClassicalRanker, FeatureBuilder  # noqa: E402
@@ -194,7 +194,8 @@ def main():
     if os.path.exists(MODEL_SAVE_PATH):
         model = DLRMModel(
             num_features=NUM_FEATURES,
-            embedding_sizes=EMBEDDING_SIZES,
+            cardinalities=CARDINALITIES,
+            embedding_dim=EMBEDDING_DIM,
             mlp_layers=MLP_LAYERS,
         )
         model.load_state_dict(torch.load(MODEL_SAVE_PATH, map_location="cpu", weights_only=True))
