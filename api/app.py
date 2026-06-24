@@ -72,6 +72,13 @@ def load_and_validate_config(path: str) -> dict:
     if cfg is None:
         raise ValueError("Configuration file is empty.")
 
+    model_cfg = cfg.get("model", {})
+    if "embedding_sizes" in model_cfg:
+        raise ValueError(
+            "'embedding_sizes' was renamed to 'cardinalities'. Update your config "
+            "(and add 'embedding_dim', default 64)."
+        )
+
     for section, keys in REQUIRED_CONFIG_KEYS.items():
         if section not in cfg:
             raise ValueError(f"Missing required config section: '{section}'")

@@ -26,6 +26,13 @@ def load_config(path: str) -> ExperimentConfig:
     model_a = exp.get("model_a", {})
     model_b = exp.get("model_b", {})
 
+    for model_cfg in (model_a, model_b):
+        if "embedding_sizes" in model_cfg:
+            raise ValueError(
+                "'embedding_sizes' was renamed to 'cardinalities'. Update your config "
+                "(and add 'embedding_dim', default 64)."
+            )
+
     return ExperimentConfig(
         name=exp.get("name", "unnamed"),
         description=exp.get("description", ""),
