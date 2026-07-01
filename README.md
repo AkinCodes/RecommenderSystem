@@ -6,7 +6,7 @@
 [![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![Live on Render](https://img.shields.io/badge/Live%20on-Render-46E3B7?logo=render&logoColor=white)](https://recommendersystem-l993.onrender.com)
 
-A movie recommendation API powered by a Deep Learning Recommendation Model (DLRM). You send it your preferences, it runs them through a neural network, pulls real movie data from TMDB (posters, ratings, summaries — the works), and hands you back personalized recommendations. This is the backend that powers [CinemaScopeAI](https://github.com/AkinCodes/CinemaScopeAI), an iOS app for discovering movies you'll actually want to watch.
+A movie recommendation API powered by a Deep Learning Recommendation Model (DLRM). You send it your preferences, it runs them through a neural network, pulls real movie data from TMDB (posters, ratings, summaries — the works), and hands you back personalized recommendations. On top of the model, a LinUCB contextual-bandit layer adds **tunable exploration** — balancing proven favorites against items the model is unsure about — with online learning from feedback and off-policy evaluation. This is the backend that powers [CinemaScopeAI](https://github.com/AkinCodes/CinemaScopeAI), an iOS app for discovering movies you'll actually want to watch.
 
 ---
 
@@ -110,12 +110,20 @@ Five movies, ranked by how well they match your taste profile, each with a poste
 The DLRM (Deep Learning Recommendation Model) is built from scratch in PyTorch. What makes it interesting:
 
 - **Handles mixed feature types** — 8 continuous features (engineered user/item stats) go through a dense layer, while categorical features (user ID, item ID) each get their own embedding table. This is how real recommendation systems at companies like Meta handle the mix of "how much" and "which one" data.
-- **Embedding tables** — `[943, 1682]` — two embedding tables (users, items), each 128-dimensional.
+- **Embedding tables** — `[943, 1682]` — two embedding tables (users, items), each 64-dimensional (`embedding_dim`, decoupled from the MLP widths).
 - **Explicit feature interaction** — computes element-wise user × item embedding product before the MLP, capturing direct collaborative filtering signal.
-- **MLP interaction layer** — a 3-layer network (512 → 64 → 32) with ReLU activations and Dropout(0.2) that learns how continuous features, embeddings, and their interaction combine.
+- **MLP interaction layer** — a 3-layer network (128 → 64 → 32) with ReLU activations and Dropout(0.2) that learns how continuous features, embeddings, and their interaction combine.
 - **Binary classification** — ratings >= 4 are positive, trained with BCELoss. Sigmoid output produces a score between 0 and 1.
 - **Regularization** — Dropout(0.2), weight decay (1e-5), early stopping (patience=5).
 - **Input validation** — the forward pass checks for None inputs, mismatched feature counts, and MLP shape mismatches, raising clear errors instead of crashing silently.
+
+### Exploration & Online Learning
+
+The recommender doesn't only exploit what the DLRM already knows — it can explore.
+
+- **Contextual bandit (LinUCB)** — `/api/v1/recommend_v3` reranks candidates by a common-scale blend of the DLRM score and a LinUCB exploration bonus, tuned by a single explore-weight `w` (default `0.2`). This surfaces items the model is *unsure* about instead of only its safest bets. See [Exploration layer](#exploration-layer-contextual-bandit).
+- **Online learning** — `POST /api/v1/feedback` updates the bandit from observed rewards and atomically persists its state, so the policy improves after deployment without retraining the DLRM.
+- **Off-policy evaluation** — the layer is validated on logged data with replay + IPS/SNIPS estimators and an explore-weight coverage/reward frontier, not just asserted to work.
 
 ### Real Movie Data
 
@@ -136,7 +144,7 @@ The DLRM (Deep Learning Recommendation Model) is built from scratch in PyTorch. 
 - **Makefile** — one command for anything: `make run`, `make test`, `make lint`, `make docker-build`.
 - **uv for dependency management** — fast, reproducible installs via `pyproject.toml`.
 - **Docker with health checks** — production Dockerfile includes a `HEALTHCHECK` directive that pings `/health` every 30 seconds.
-- **Comprehensive tests** — 71 tests covering model forward passes, API endpoints, input validation, edge cases (empty batches, wrong types, missing fields), structured error responses, preprocessing config, and DLRM interaction verification.
+- **Comprehensive tests** — 132 tests covering model forward passes, API endpoints, input validation, edge cases (empty batches, wrong types, missing fields), structured error responses, preprocessing config, DLRM interaction verification, plus the bandit math (Sherman-Morrison updates, scale-invariant blending), off-policy estimators (replay/IPS/SNIPS against synthetic ground truth), and exploration ordering effects.
 - **Ruff for linting** — fast Python linting and formatting with a 120-char line length.
 
 ---
@@ -245,6 +253,22 @@ Pure exploitation always shows a user the items the DLRM already scores highest,
 - **What it does** — for each candidate it builds an *interaction context* (the elementwise `user × item` embedding product — the same signal the DLRM's own interaction term uses) and computes the bandit's **exploration bonus** `alpha · √(xᵀ A⁻¹ x)`. Because the DLRM sigmoid score (~0.9–1.0) and the raw bonus (mean ~3.3) live on **completely different scales**, they are **not** summed directly (a raw sum just ranks by whichever term is larger). Instead both are min-max normalized across the candidate set to `[0, 1]` and convex-combined by a single explore-weight knob `w`: **`final = (1 - w)·norm(dlrm) + w·norm(bonus)`** (`combine_explore` in `models/bandit.py`). `w = 0` is pure exploit (identical to DLRM order), `w = 1` is pure exploration; the served default is **`w = 0.2`**. The bonus is large for contexts the bandit has seen little of and shrinks as it accumulates observations, so exploration decays automatically. Each result carries its `dlrm_score`, `exploration_bonus`, and an `is_exploratory` flag (true when the blend changed that item's rank vs pure-DLRM order). Cold-start users get the same blend applied over the popularity candidates using a **mean-user-embedding context** (popularity as the base, normalized the same way), so a new user's order is genuinely perturbed rather than being the identical static popularity list.
 - **Online learning** — `POST /api/v1/feedback` takes `{user_id, item_id, reward}` (reward in `[0, 1]`, e.g. `1.0` if the user liked it), rebuilds the context from the stored embeddings, applies a rank-1 `LinUCB.update`, and atomically persists the state to `bandit_state.pkl` (loaded at startup, mirroring `serving_context.pkl`). The update + persist run under a lock, and the write is atomic (`os.replace`). This makes the layer a *real* online learner rather than a static bonus — post-deployment feedback moves the policy. **Single-worker assumption:** the bandit state is in-memory; running multiple uvicorn workers means each holds its own copy and they race the pickle (see EVALUATION.md).
 - The bandit is pure NumPy (Sherman-Morrison rank-1 updates, no matrix re-inversion) and lives in `models/bandit.py`. `v1`/`v2` are left unchanged so v3 can be A/B-compared against them. `scripts/offline_bandit_eval.py` sweeps the explore weight `w` and saves an **explore-weight coverage/reward frontier** (`experiments/results/bandit_explore_frontier.png`) — the exploit signal it measures is the **real served DLRM sigmoid**, and it ranks by the same `combine_explore` blend the API serves.
+
+**Result — the explore/exploit frontier** (off-policy evaluation over 20K held-out MovieLens events):
+
+![Explore-weight coverage vs. reward frontier](experiments/results/bandit_explore_frontier.png)
+
+| explore weight `w` | reward (SNIPS) | catalog coverage (distinct items) |
+|---|---|---|
+| 0.0 (pure DLRM) | 0.731 | 107 |
+| 0.1 | 0.700 | 164 |
+| **0.2 (served default)** | **0.695** | **180** |
+| 0.3 | 0.662 | 190 |
+| 0.5 | 0.654 | 195 |
+| 1.0 (pure explore) | 0.585 | 196 |
+| Most-Popular (reference) | 0.754 | 58 |
+
+At the default `w = 0.2` the bandit keeps **~95% of the DLRM's reward** while lifting **catalog coverage +68% (107 → 180 distinct items)**. Most-Popular's higher SNIPS is a self-selection/replay artifact — it retains a tiny, popularity-biased subset of events while surfacing only 58 items (SNIPS is the estimator to trust here; absolute IPS is uninterpretable). MovieLens is static, so exploration is replay-simulated — the true online lift can only come from a live A/B test.
 
 ```bash
 # Explore-aware recommendations (returns dlrm_score, exploration_bonus, is_exploratory per item)
