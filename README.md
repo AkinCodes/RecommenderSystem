@@ -75,7 +75,7 @@ Five movies, ranked by how well they match your taste profile, each with a poste
 │                                                                     │
 │  continuous features ──► Dense Layer ──────────┐                    │
 │                                                 ├──► MLP ──► Score  │
-│  categorical features ──► Embedding Tables ────┘    [512→64→32→1]  │
+│  categorical features ──► Embedding Tables ────┘    [128→64→32→1]  │
 │                                                      + Sigmoid      │
 │                                                      → [0.0, 1.0]  │
 └──────────────────────────┬──────────────────────────────────────────┘
@@ -97,7 +97,7 @@ Five movies, ranked by how well they match your taste profile, each with a poste
 **Step by step:**
 
 1. **You send preferences** — 8 continuous features (engineered stats like average rating, activity, item popularity) and 2 categorical features (user ID and item ID).
-2. **DLRM processes them** — the model takes your 8 continuous features through a dense layer and your category choices through separate embedding tables (`[943, 1682]`, each 128-dim). It also computes an element-wise user × item interaction (the two embedding vectors multiplied together). Everything gets concatenated and pushed through a multi-layer perceptron (512 → 64 → 32 neurons) with Dropout(0.2) that outputs a single score between 0 and 1.
+2. **DLRM processes them** — the model takes your 8 continuous features through a dense layer and your category choices through separate embedding tables (`[943, 1682]`, each 64-dim). It also computes an element-wise user × item interaction (the two embedding vectors multiplied together). Everything gets concatenated and pushed through a multi-layer perceptron (128 → 64 → 32 neurons) with Dropout(0.2) that outputs a single score between 0 and 1.
 3. **Real movies get fetched** — the API calls TMDB asynchronously to grab currently popular movies with their metadata.
 4. **Results get ranked** — movies are sorted by how well their TMDB rating aligns with the model's prediction score, and the top 5 are returned with titles, posters, release years, and summaries.
 
@@ -176,9 +176,9 @@ See [EVALUATION.md](EVALUATION.md) for full ablation studies, failure analysis, 
 | Parameter | Value |
 |-----------|-------|
 | Dataset | MovieLens 100K (100,000 ratings, 943 users, 1,682 items) |
-| Embeddings | `[943, 1682]` x 128-dim (user, item) |
-| Continuous features | 8 dense features → Linear(8, 128) |
-| MLP | `[512 → 64 → 32]` with ReLU + Dropout(0.2) between layers |
+| Embeddings | `[943, 1682]` x 64-dim (user, item) |
+| Continuous features | 8 dense features → Linear(8, 64) |
+| MLP | `[128 → 64 → 32]` with ReLU + Dropout(0.2) between layers |
 | Output | Linear(32, 1) → Sigmoid |
 | Loss | BCELoss (binary: rating >= 4 is positive) |
 | Optimizer | Adam (lr=0.001, weight_decay=1e-5) |
@@ -219,7 +219,7 @@ See [EVALUATION.md](EVALUATION.md) for full ablation studies, failure analysis, 
 | **LogReg** | StandardScaler → Logistic Regression (C=1.0, lbfgs) on 8 features | **0.8023** | **0.6880** | **1.0000** |
 | XGBoost | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 features | 0.7836 | 0.6707 | 1.0000 |
 | LightGBM | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 features | 0.7820 | 0.6661 | 0.9965 |
-| DLRM | Learned user/item embeddings (128-dim) + interaction + 3-layer MLP | 0.6723 | 0.5774 | 0.9965 |
+| DLRM | Learned user/item embeddings (64-dim) + interaction + 3-layer MLP | 0.6723 | 0.5774 | 0.9965 |
 
 ### Serving Architecture
 
@@ -235,7 +235,7 @@ See [EVALUATION.md](EVALUATION.md) for full ablation studies, failure analysis, 
 ```
 Stage 1: Candidate Generation (~1ms)          Stage 2: Reranking
 ┌──────────────────────────────┐       ┌─────────────────────────────┐
-│  User embedding (128-dim)    │       │  Full DLRM forward pass     │
+│  User embedding (64-dim)     │       │  Full DLRM forward pass     │
 │         ↓                    │       │  on 100 candidates          │
 │  Faiss IndexFlatIP (cosine)  │──────►│  8 features + embeddings    │
 │  1,682 items → top 100       │       │  → top-K ranked results     │
@@ -392,7 +392,7 @@ Returns details about the loaded DLRM model.
   "device": "cpu",
   "num_continuous_features": 8,
   "num_categorical_features": 2,
-  "mlp_layers": [512, 64, 32]
+  "mlp_layers": [128, 64, 32]
 }
 ```
 
