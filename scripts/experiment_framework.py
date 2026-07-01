@@ -126,6 +126,100 @@ def compute_confidence_interval(
     return (float(diff - t_crit * se), float(diff + t_crit * se))
 
 
+def _ranking_metrics_for_user(ranked_item_indices: list[int], relevant: set[int], k: int) -> dict[str, float]:
+    """Compute NDCG@k / Precision@k / Recall@k / HitRate@k for one user's ranked candidate list.
+
+    Args:
+        ranked_item_indices: candidate item indices ordered best-first by the policy.
+        relevant: set of item indices the user actually liked (reward == 1) in the held-out split.
+        k: cutoff.
+
+    Returns:
+        dict keyed "NDCG@10" / "Precision@10" / "Recall@10" / "HitRate@10" (labels always use 10 to
+        match the existing model-comparison metric names, regardless of the actual ``k``).
+    """
+    from scripts.train_movielens import ndcg_at_k
+
+    ranked_rels = [1.0 if it in relevant else 0.0 for it in ranked_item_indices]
+    top_k = ranked_item_indices[:k]
+    hits_in_k = sum(1 for it in top_k if it in relevant)
+    return {
+        "NDCG@10": ndcg_at_k(ranked_rels, k),
+        "Precision@10": hits_in_k / k,
+        "Recall@10": hits_in_k / len(relevant) if relevant else 0.0,
+        "HitRate@10": 1.0 if hits_in_k > 0 else 0.0,
+    }
+
+
+def run_policy_comparison(
+    rank_fn_a,
+    rank_fn_b,
+    user_items: dict[int, list[tuple[int, float]]],
+    config: ExperimentConfig,
+) -> "ExperimentResult":
+    """Compare two ranking POLICIES over the same held-out data, reusing the A/B stats machinery.
+
+    Both policies re-rank the SAME per-user candidate lists produced from the ONE trained DLRM
+    (no retraining). This is additive: it produces the same per-user metric dicts (NDCG@10,
+    Precision@10, Recall@10, HitRate@10) that ``_evaluate_per_user`` produces for model comparison,
+    then reuses the identical Welch's t-test / Cohen's d / power / CI code and the same ``to_report``.
+
+    Args:
+        rank_fn_a: callable(user_idx, item_indices) -> ranked item indices (control, e.g. pure DLRM).
+        rank_fn_b: callable(user_idx, item_indices) -> ranked item indices (treatment, e.g. bandit).
+        user_items: mapping user_idx -> list of (item_idx, reward) held-out interactions.
+        config: ExperimentConfig; ``primary_metric`` selects the metric for significance testing.
+
+    Returns:
+        A fully-populated ExperimentResult (per-user dicts, metric means, and statistics), suitable
+        for ``to_report(...)`` exactly like a model-comparison result.
+    """
+    result = ExperimentResult(config=config)
+    per_user_a: dict[str, list[float]] = {"NDCG@10": [], "Precision@10": [], "Recall@10": [], "HitRate@10": []}
+    per_user_b: dict[str, list[float]] = {"NDCG@10": [], "Precision@10": [], "Recall@10": [], "HitRate@10": []}
+    k = config.top_k
+
+    for uidx, items_ratings in user_items.items():
+        if len(items_ratings) < 2:
+            continue
+        relevant = {iidx for iidx, r in items_ratings if r >= 1.0}
+        if not relevant:
+            continue
+        item_indices = [ir[0] for ir in items_ratings]
+
+        ranked_a = [int(x) for x in rank_fn_a(uidx, item_indices)]
+        ranked_b = [int(x) for x in rank_fn_b(uidx, item_indices)]
+
+        for target, ranked in ((per_user_a, ranked_a), (per_user_b, ranked_b)):
+            m = _ranking_metrics_for_user(ranked, relevant, k)
+            for name, val in m.items():
+                target[name].append(val)
+
+    result.model_a_per_user = per_user_a
+    result.model_b_per_user = per_user_b
+    result.model_a_metrics = {kk: float(np.mean(v)) if v else 0.0 for kk, v in per_user_a.items()}
+    result.model_b_metrics = {kk: float(np.mean(v)) if v else 0.0 for kk, v in per_user_b.items()}
+
+    # Reuse the exact same statistics as model comparison (Welch t-test, Cohen's d, power, CI).
+    metric = config.primary_metric
+    a = np.array(per_user_a.get(metric, []))
+    b = np.array(per_user_b.get(metric, []))
+    if len(a) >= 2 and len(b) >= 2:
+        t_stat, p_val = stats.ttest_ind(a, b, equal_var=False)
+        result.t_statistic = float(t_stat)
+        result.p_value = float(p_val)
+        result.confidence_interval = compute_confidence_interval(a, b, config.significance_level)
+        result.cohens_d = compute_cohens_d(a, b)
+        result.statistical_power = compute_power(
+            abs(result.cohens_d), min(len(a), len(b)), config.significance_level
+        )
+        result.is_significant = p_val < config.significance_level
+        if result.is_significant:
+            result.winner = config.model_b_name if np.mean(b) > np.mean(a) else config.model_a_name
+
+    return result
+
+
 class ExperimentRunner:
     def __init__(self, config: ExperimentConfig):
         self.config = config

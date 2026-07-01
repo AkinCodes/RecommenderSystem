@@ -219,7 +219,8 @@ See [EVALUATION.md](EVALUATION.md) for full ablation studies, failure analysis, 
 |----------|----------|-------------|
 | `/recommend/{user_id}` | Brute-force | Scores all 1,682 items in a single forward pass, returns top-K |
 | `/recommend_v2/{user_id}` | Two-stage (ANN + rerank) | Faiss ANN retrieves top-100 candidates, DLRM reranks to top-K |
-| Cold-start | Popularity fallback | Unknown users receive popularity-ranked recommendations |
+| `/recommend_v3/{user_id}` | Two-stage + bandit | Same retrieval as v2, reranked by a **common-scale blend** `(1-w)·norm(DLRM) + w·norm(LinUCB bonus)` (default `w=0.2`) |
+| Cold-start | Popularity + explore blend | Unknown users get the popularity candidates reranked by the same `combine_explore` blend on v3 |
 
 ### Two-Stage Retrieval Pipeline
 
@@ -236,6 +237,24 @@ Stage 1: Candidate Generation (~1ms)          Stage 2: Reranking
 - **Stage 1** uses Faiss inner-product search over normalised item embeddings to retrieve ~100 candidates in ~1ms.
 - **Stage 2** runs the full DLRM (8 continuous features + user/item embeddings → MLP) on the candidate set and returns the final top-K.
 - Falls back to sklearn `NearestNeighbors` (brute cosine) if `faiss-cpu` is not installed.
+
+### Exploration layer (contextual bandit)
+
+Pure exploitation always shows a user the items the DLRM already scores highest, so it never learns whether items it's *unsure* about would have landed. `/recommend_v3` adds a **LinUCB contextual bandit** on top of the two-stage pipeline to close that loop.
+
+- **What it does** — for each candidate it builds an *interaction context* (the elementwise `user × item` embedding product — the same signal the DLRM's own interaction term uses) and computes the bandit's **exploration bonus** `alpha · √(xᵀ A⁻¹ x)`. Because the DLRM sigmoid score (~0.9–1.0) and the raw bonus (mean ~3.3) live on **completely different scales**, they are **not** summed directly (a raw sum just ranks by whichever term is larger). Instead both are min-max normalized across the candidate set to `[0, 1]` and convex-combined by a single explore-weight knob `w`: **`final = (1 - w)·norm(dlrm) + w·norm(bonus)`** (`combine_explore` in `models/bandit.py`). `w = 0` is pure exploit (identical to DLRM order), `w = 1` is pure exploration; the served default is **`w = 0.2`**. The bonus is large for contexts the bandit has seen little of and shrinks as it accumulates observations, so exploration decays automatically. Each result carries its `dlrm_score`, `exploration_bonus`, and an `is_exploratory` flag (true when the blend changed that item's rank vs pure-DLRM order). Cold-start users get the same blend applied over the popularity candidates using a **mean-user-embedding context** (popularity as the base, normalized the same way), so a new user's order is genuinely perturbed rather than being the identical static popularity list.
+- **Online learning** — `POST /api/v1/feedback` takes `{user_id, item_id, reward}` (reward in `[0, 1]`, e.g. `1.0` if the user liked it), rebuilds the context from the stored embeddings, applies a rank-1 `LinUCB.update`, and atomically persists the state to `bandit_state.pkl` (loaded at startup, mirroring `serving_context.pkl`). The update + persist run under a lock, and the write is atomic (`os.replace`). This makes the layer a *real* online learner rather than a static bonus — post-deployment feedback moves the policy. **Single-worker assumption:** the bandit state is in-memory; running multiple uvicorn workers means each holds its own copy and they race the pickle (see EVALUATION.md).
+- The bandit is pure NumPy (Sherman-Morrison rank-1 updates, no matrix re-inversion) and lives in `models/bandit.py`. `v1`/`v2` are left unchanged so v3 can be A/B-compared against them. `scripts/offline_bandit_eval.py` sweeps the explore weight `w` and saves an **explore-weight coverage/reward frontier** (`experiments/results/bandit_explore_frontier.png`) — the exploit signal it measures is the **real served DLRM sigmoid**, and it ranks by the same `combine_explore` blend the API serves.
+
+```bash
+# Explore-aware recommendations (returns dlrm_score, exploration_bonus, is_exploratory per item)
+curl "http://localhost:8000/api/v1/recommend_v3/1?top_k=5"
+
+# Feed an observed reward back into the bandit (online update + persist)
+curl -X POST http://localhost:8000/api/v1/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": 1, "item_id": 50, "reward": 1.0}'
+```
 
 ---
 
@@ -441,6 +460,78 @@ curl http://localhost:8000/api/v1/recommend/1?top_k=5
 | 200 | Unknown user — returns popularity-based fallback with `"note": "cold-start"` |
 | 404 | Unknown user AND no popular items available (rare) |
 | 503 | Model or serving context not loaded |
+
+### `GET /api/v1/recommend_v3/{user_id}`
+
+Same two-stage retrieval as `/recommend_v2`, but reranked by the common-scale blend `(1-w)·norm(dlrm_score) + w·norm(exploration_bonus)` with default `w=0.2` (see [Exploration layer](#exploration-layer-contextual-bandit)). Known users get the ANN + DLRM + bandit path; unknown users get the same blend applied over popularity candidates. `score` is the blended `[0, 1]` value; `dlrm_score` and `exploration_bonus` are the raw pre-blend terms.
+
+**Query parameters:** `top_k` (default `10`), `num_candidates` (default `100`).
+
+**Example:**
+
+```bash
+curl "http://localhost:8000/api/v1/recommend_v3/1?top_k=5"
+```
+
+**Response** (200):
+
+```json
+{
+  "user_id": 1,
+  "recommendations": [
+    {
+      "item_id": 50,
+      "score": 0.8123,
+      "dlrm_score": 0.9312,
+      "exploration_bonus": 0.352901,
+      "is_exploratory": true,
+      "title": "Star Wars (1977)",
+      "genres": ["Action", "Adventure", "Sci-Fi"]
+    }
+  ],
+  "pipeline": "three-stage (ANN + DLRM rerank + bandit exploration)",
+  "policy": "combine_explore(w=0.2): (1-w)*norm(DLRM) + w*norm(LinUCB alpha=1.0 bonus)",
+  "explore_weight": 0.2,
+  "retrieval": "item-centroid",
+  "num_candidates": 100,
+  "latency_ms": { "stage1_ann": 1.0, "stage2_rerank": 0.6, "stage3_bandit": 0.7, "total": 2.3 },
+  "ann_backend": "faiss-cpu"
+}
+```
+
+Cold-start users receive `"pipeline": "bandit-reranked (cold-start)"` with `"note": "cold-start: bandit-explored popularity path"`.
+
+### `POST /api/v1/feedback`
+
+Online-learning update. Applies an observed `(user_id, item_id, reward)` to the bandit and persists the new state to `bandit_state.pkl`.
+
+**Request:**
+
+```json
+{ "user_id": 1, "item_id": 50, "reward": 1.0 }
+```
+
+**Response** (200):
+
+```json
+{
+  "success": true,
+  "user_id": 1,
+  "item_id": 50,
+  "reward": 1.0,
+  "updates_applied": 1,
+  "exploit_mean": 0.4821,
+  "exploration_bonus": 0.3410,
+  "persisted": true
+}
+```
+
+**Error responses:**
+
+| Status | When |
+|---|---|
+| 400 | `reward` outside `[0, 1]`, or unknown `item_id` |
+| 503 | Model, serving context, or bandit not loaded |
 
 ### `POST /predict/`
 

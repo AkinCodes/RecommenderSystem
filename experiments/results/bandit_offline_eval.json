@@ -1,0 +1,102 @@
+{
+  "n_events": 20000,
+  "n_items": 1682,
+  "propensity_model": "softmax over training-set item popularity (documented stand-in), renormalized WITHIN each candidate pool; absolute IPS uninterpretable, trust SNIPS for cross-policy",
+  "served_policy": "combine_explore(dlrm_sigmoid, LinUCB_bonus, w); exploit = REAL served DLRM sigmoid",
+  "explore_weights": [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.5,
+    1.0
+  ],
+  "reference_policies": {
+    "dlrm": {
+      "explore_weight": null,
+      "snips_value": 0.7314346391785239,
+      "replay_value": 0.7109634551495017,
+      "replay_retained": 301,
+      "ips_value": 0.6982900097015355,
+      "ips_ess": 129.47869393772558,
+      "distinct_items": 107,
+      "mean_pop_rank": 0.8470393218322427
+    },
+    "popularity": {
+      "explore_weight": null,
+      "snips_value": 0.7543056212609295,
+      "replay_value": 0.6877076411960132,
+      "replay_retained": 301,
+      "ips_value": 0.40228769217867955,
+      "ips_ess": 137.24066606600465,
+      "distinct_items": 58,
+      "mean_pop_rank": 0.9973304283164783
+    }
+  },
+  "explore_weight_sweep": [
+    {
+      "explore_weight": 0.0,
+      "snips_value": 0.7314346391785239,
+      "replay_value": 0.7109634551495017,
+      "replay_retained": 301,
+      "ips_value": 0.6982900097015355,
+      "ips_ess": 129.47869393772558,
+      "distinct_items": 107,
+      "mean_pop_rank": 0.8470393218322427
+    },
+    {
+      "explore_weight": 0.1,
+      "snips_value": 0.7002798480358768,
+      "replay_value": 0.7039274924471299,
+      "replay_retained": 331,
+      "ips_value": 0.7156361420763162,
+      "ips_ess": 137.41078073832358,
+      "distinct_items": 164,
+      "mean_pop_rank": 0.8942969066032125
+    },
+    {
+      "explore_weight": 0.2,
+      "snips_value": 0.6954607780734178,
+      "replay_value": 0.6976047904191617,
+      "replay_retained": 334,
+      "ips_value": 0.677401278557706,
+      "ips_ess": 127.77707316469942,
+      "distinct_items": 180,
+      "mean_pop_rank": 0.9046947352766213
+    },
+    {
+      "explore_weight": 0.3,
+      "snips_value": 0.6624749920808908,
+      "replay_value": 0.6834319526627219,
+      "replay_retained": 338,
+      "ips_value": 0.6387938662835421,
+      "ips_ess": 124.57652237057462,
+      "distinct_items": 190,
+      "mean_pop_rank": 0.9087786139202856
+    },
+    {
+      "explore_weight": 0.5,
+      "snips_value": 0.6540661587782792,
+      "replay_value": 0.6542857142857142,
+      "replay_retained": 350,
+      "ips_value": 0.6406207372993499,
+      "ips_ess": 123.45170065986731,
+      "distinct_items": 195,
+      "mean_pop_rank": 0.9141377751338489
+    },
+    {
+      "explore_weight": 1.0,
+      "snips_value": 0.5844789301427945,
+      "replay_value": 0.572289156626506,
+      "replay_retained": 332,
+      "ips_value": 0.5575741125452774,
+      "ips_ess": 125.1583275848455,
+      "distinct_items": 196,
+      "mean_pop_rank": 0.9165254312908983
+    }
+  ],
+  "notes": {
+    "popularity_artifact": "Popularity's higher replay reward is a self-selection/replay artifact: it retains a tiny favorably-biased subset of events, not evidence popularity beats DLRM.",
+    "snips_is_the_estimator_to_trust": true
+  }
+}
