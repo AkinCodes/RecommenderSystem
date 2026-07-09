@@ -144,7 +144,7 @@ The recommender doesn't only exploit what the DLRM already knows — it can expl
 - **Makefile** — one command for anything: `make run`, `make test`, `make lint`, `make docker-build`.
 - **uv for dependency management** — fast, reproducible installs via `pyproject.toml`.
 - **Docker with health checks** — production Dockerfile includes a `HEALTHCHECK` directive that pings `/health` every 30 seconds.
-- **Comprehensive tests** — 132 tests covering model forward passes, API endpoints, input validation, edge cases (empty batches, wrong types, missing fields), structured error responses, preprocessing config, DLRM interaction verification, plus the bandit math (Sherman-Morrison updates, scale-invariant blending), off-policy estimators (replay/IPS/SNIPS against synthetic ground truth), and exploration ordering effects.
+- **Comprehensive tests** — 140 tests covering model forward passes, API endpoints, input validation, edge cases (empty batches, wrong types, missing fields), structured error responses, preprocessing config, DLRM interaction verification, plus the bandit math (Sherman-Morrison updates, scale-invariant blending), off-policy estimators (replay/IPS/SNIPS against synthetic ground truth), and exploration ordering effects.
 - **Ruff for linting** — fast Python linting and formatting with a 120-char line length.
 
 ---
@@ -339,7 +339,7 @@ This starts uvicorn with hot reload at `http://localhost:8000`. You should see:
 
 ```
 INFO:     Configuration loaded and validated successfully.
-INFO:     DLRM model loaded successfully from 'trained_model.pth'.
+INFO:     DLRM model loaded successfully from 'trained_model_movielens.pth'.
 INFO:     Uvicorn running on http://0.0.0.0:8000
 ```
 
@@ -609,7 +609,7 @@ All hyperparameters live in `configs/config.yaml`:
 
 ### How Checkpoints Work
 
-The `ModelCheckpoint` callback saves the top 3 models by training loss, plus a `last.ckpt` that always has the most recent weights. Checkpoint files are named like `dlrm-epoch=04-train_loss=0.65.ckpt`. To use a trained model in the API, export its state dict to `trained_model.pth` in the project root.
+The `ModelCheckpoint` callback saves the top 3 models by training loss, plus a `last.ckpt` that always has the most recent weights. Checkpoint files are named like `dlrm-epoch=04-train_loss=0.65.ckpt`. To use a trained model in the API, export its state dict to `trained_model_movielens.pth` in the project root.
 
 ### Dual Optimizer Setup
 
