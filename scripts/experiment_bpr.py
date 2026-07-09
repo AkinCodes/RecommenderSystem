@@ -5,12 +5,10 @@ Isolates the training objective as the ONLY variable:
   - identical seed, optimizer family, epochs
   - identical evaluation (compute_ranking_metrics on the test split)
 
-We report two evaluation modes for BOTH losses:
-  (1) frozen-feature eval  -- the EXACT methodology used by retrain_and_compare.py
-                              (user continuous features held constant across candidates;
-                              item discrimination comes only from the item embedding)
-  (2) per-item-feature eval -- proper per-(user,item) features for every candidate,
-                              removing the frozen-feature handicap.
+Evaluation uses proper per-(user,item) continuous features for every candidate
+(matching the fixed methodology in retrain_and_compare.py), so item-specific
+columns (item_mean/count/popularity, user×item interaction) are correct for
+every candidate rather than frozen to one user's cached row.
 """
 
 import os
@@ -202,20 +200,6 @@ def train_bpr(train_raw, user2idx, item2idx, fb):
 # --------------------------------------------------------------------------- #
 # Evaluation
 # --------------------------------------------------------------------------- #
-def make_frozen_rank(model, user_cont_map):
-    def rank(uidx, item_indices):
-        n = len(item_indices)
-        cont = torch.tensor(np.tile(user_cont_map[uidx], (n, 1)), dtype=torch.float32)
-        cat = torch.zeros(n, 2, dtype=torch.long)
-        cat[:, 0] = uidx
-        cat[:, 1] = torch.tensor(item_indices, dtype=torch.long)
-        with torch.no_grad():
-            s = model(cont, cat).squeeze().numpy()
-        return s if s.ndim else np.array([s.item()])
-
-    return rank
-
-
 def make_peritem_rank(model, fb):
     def rank(uidx, item_indices):
         u_arr = np.full(len(item_indices), uidx)
@@ -244,15 +228,12 @@ def main():
     train_raw = raw_sorted[:split]
     fb = FeatureBuilder(train_raw, user2idx, item2idx)
 
-    # Build the exact eval structures used by retrain_and_compare.py
+    # Build the eval structures used by retrain_and_compare.py. Per-item
+    # continuous features are rebuilt from the FeatureBuilder at rank time.
     user_test = {}
     for i in range(len(test_raw)):
         uidx = user2idx[test_raw[i, 0]]
         user_test.setdefault(uidx, []).append((int(test_cat[i, 1]), test_targets[i]))
-    user_cont_map = {}
-    for i in range(len(test_raw)):
-        uidx = int(test_cat[i, 0])
-        user_cont_map.setdefault(uidx, test_cont[i])
 
     print("\n[1] Training BCE (pointwise) baseline...")
     bce_model = train_bce(train_cont, train_cat, train_targets)
@@ -260,12 +241,10 @@ def main():
     print("\n[2] Training BPR (pairwise)...")
     bpr_model = train_bpr(train_raw, user2idx, item2idx, fb)
 
-    print("\n[3] Evaluating both, two eval modes each...\n")
+    print("\n[3] Evaluating both with per-item-feature eval...\n")
     rows = []
     for name, model in [("BCE", bce_model), ("BPR", bpr_model)]:
-        frozen = compute_ranking_metrics(user_test, make_frozen_rank(model, user_cont_map), k=K)
         peritem = compute_ranking_metrics(user_test, make_peritem_rank(model, fb), k=K)
-        rows.append((f"{name} (frozen-feat eval)", frozen))
         rows.append((f"{name} (per-item-feat eval)", peritem))
 
     print(f"{'Model':<28} {'NDCG@10':>9} {'Prec@10':>9} {'Recall@10':>10} {'HR@10':>7} {'AUC':>7}")

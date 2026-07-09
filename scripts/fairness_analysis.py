@@ -144,19 +144,15 @@ def main():
 
     genre_names, item_genres = load_genres()
 
+    # Keep each candidate's source ROW index (parallel to item order) so we can
+    # score it with ITS OWN continuous features instead of one tiled row.
     user_test = {}
     for i in range(len(test_raw)):
         uid = test_raw[i, 0]
         uidx = user2idx[uid]
         iidx = int(test_cat[i, 1])
         rating = test_targets[i]
-        user_test.setdefault(uidx, []).append((iidx, rating))
-
-    user_cont_map = {}
-    for i in range(len(test_raw)):
-        uidx = int(test_cat[i, 0])
-        if uidx not in user_cont_map:
-            user_cont_map[uidx] = test_cont[i]
+        user_test.setdefault(uidx, []).append((iidx, rating, i))
 
     user_topk = {}
     user_ndcg = {}
@@ -165,14 +161,17 @@ def main():
         for uidx, items_ratings in user_test.items():
             if len(items_ratings) < 2:
                 continue
-            relevant = {iidx for iidx, r in items_ratings if r >= 1.0}
+            relevant = {iidx for iidx, r, _ in items_ratings if r >= 1.0}
             if len(relevant) == 0:
                 continue
 
             item_indices = [ir[0] for ir in items_ratings]
+            row_idxs = [ir[2] for ir in items_ratings]
             n = len(item_indices)
 
-            cont_tensor = torch.tensor(np.tile(user_cont_map[uidx], (n, 1)), dtype=torch.float32)
+            # Each candidate scored with its OWN continuous row (via row_idxs);
+            # the categorical tensor (user id + item id) is unchanged.
+            cont_tensor = torch.tensor(test_cont[row_idxs], dtype=torch.float32)
             cat_tensor = torch.zeros(n, 2, dtype=torch.long)
             cat_tensor[:, 0] = uidx
             cat_tensor[:, 1] = torch.tensor(item_indices, dtype=torch.long)
