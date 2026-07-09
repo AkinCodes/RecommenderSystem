@@ -578,13 +578,15 @@ Legacy endpoint. Delegates to `/api/v1/predict` — same request format, same re
 
 The training pipeline uses PyTorch with early stopping, learning rate scheduling, and W&B logging. The MovieLens trainer (`scripts/train_movielens.py`) uses a strict **3-way timestamp-ordered split (train 0.70 / val 0.10 / test 0.20)**: the training slice fits the weights, the **validation** slice drives every training decision — early stopping, the `ReduceLROnPlateau` LR schedule, and best-checkpoint selection all monitor **validation loss** (with per-epoch val NDCG@10 logged) — and the **test** slice is held out and scored once at the end. The lowest-val-loss weights are restored before final evaluation.
 
+For the real MovieLens run, reach for `scripts/train_movielens.py` (the 3-way split and validation-driven loop described above). `scripts/train.py` is a different animal — a **standalone synthetic architecture smoke-test**. It wires the model end-to-end on random data to prove the plumbing works, using its own hardcoded dimensions (10 continuous + 5 categorical features, `embedding_dim` 16, MLP `[64, 32, 16]`, 5 epochs) that are **independent of `configs/config.yaml` and the MovieLens dataset**. It reads neither.
+
 ```bash
 uv run python scripts/train.py
 ```
 
 This will:
-1. Create a synthetic dataset (1000 samples with 10 continuous + 5 categorical features)
-2. Train the DLRM for 5 epochs with BCE loss
+1. Create a synthetic dataset (1000 random samples with 10 continuous + 5 categorical features)
+2. Train a small demo DLRM for 5 epochs with BCE loss
 3. Save checkpoints to `lightning_logs/checkpoints/`
 4. Run validation after training
 5. Load the best checkpoint and run a test inference
@@ -602,6 +604,8 @@ All hyperparameters live in `configs/config.yaml`:
 | `learning_rate` | `0.001` | Adam optimizer learning rate |
 | `epochs` | `5` | Number of training epochs |
 | `batch_size` | `32` | Samples per training batch |
+
+`num_features`, `cardinalities`, `embedding_dim`, and `mlp_layers` describe the model/serving architecture that ships to production. `epochs` and `batch_size`, though, are demo defaults — the MovieLens trainer (`scripts/train_movielens.py`) runs its own **20 epochs / batch 256** (see the architecture table above), so don't read the `5` here as the real training length.
 
 ### How Checkpoints Work
 
