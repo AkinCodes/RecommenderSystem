@@ -186,7 +186,7 @@ See [EVALUATION.md](EVALUATION.md) for full ablation studies, failure analysis, 
 | Regularization | Dropout 0.2, early stopping (patience=5, monitors **validation** loss) |
 | Data split | Timestamp-ordered **train 0.70 / val 0.10 / test 0.20** (3-way) |
 | Training | 20 epochs max, batch_size=256 |
-| Parameters | ~372K total (~90% embeddings, ~10% MLP + dense layers) |
+| Parameters | 211,841 total (~79% embeddings, ~21% MLP + dense layers) |
 
 ### Input Features (8 total)
 
@@ -399,7 +399,7 @@ Returns details about the loaded DLRM model.
 ```json
 {
   "architecture": "DLRM (Deep Learning Recommendation Model)",
-  "num_parameters": 372097,
+  "num_parameters": 211841,
   "device": "cpu",
   "num_continuous_features": 8,
   "num_categorical_features": 2,
@@ -595,8 +595,8 @@ All hyperparameters live in `configs/config.yaml`:
 
 | Parameter | Default | What it controls |
 |---|---|---|
-| `num_features` | `10` | Number of continuous input features |
-| `cardinalities` | `[10, 10, 10, 10, 10]` | Vocabulary size (cardinality) for each categorical embedding table |
+| `num_features` | `8` | Number of continuous input features |
+| `cardinalities` | `[943, 1682]` | Vocabulary size (cardinality) for each categorical embedding table |
 | `embedding_dim` | `64` | Dimension of every embedding vector (decoupled from the MLP) |
 | `mlp_layers` | `[128, 64, 32]` | Hidden layer dimensions for the interaction MLP |
 | `learning_rate` | `0.001` | Adam optimizer learning rate |
