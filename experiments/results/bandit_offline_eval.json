@@ -14,13 +14,13 @@
   "reference_policies": {
     "dlrm": {
       "explore_weight": null,
-      "snips_value": 0.7314346391785239,
-      "replay_value": 0.7109634551495017,
+      "snips_value": 0.787825306525021,
+      "replay_value": 0.770764119601329,
       "replay_retained": 301,
-      "ips_value": 0.6982900097015355,
-      "ips_ess": 129.47869393772558,
-      "distinct_items": 107,
-      "mean_pop_rank": 0.8470393218322427
+      "ips_value": 0.7304554291897694,
+      "ips_ess": 114.3848019707495,
+      "distinct_items": 81,
+      "mean_pop_rank": 0.848065734681737
     },
     "popularity": {
       "explore_weight": null,
@@ -36,63 +36,63 @@
   "explore_weight_sweep": [
     {
       "explore_weight": 0.0,
-      "snips_value": 0.7314346391785239,
-      "replay_value": 0.7109634551495017,
+      "snips_value": 0.787825306525021,
+      "replay_value": 0.770764119601329,
       "replay_retained": 301,
-      "ips_value": 0.6982900097015355,
-      "ips_ess": 129.47869393772558,
-      "distinct_items": 107,
-      "mean_pop_rank": 0.8470393218322427
+      "ips_value": 0.7304554291897694,
+      "ips_ess": 114.3848019707495,
+      "distinct_items": 81,
+      "mean_pop_rank": 0.848065734681737
     },
     {
       "explore_weight": 0.1,
-      "snips_value": 0.7002798480358768,
-      "replay_value": 0.7039274924471299,
-      "replay_retained": 331,
-      "ips_value": 0.7156361420763162,
-      "ips_ess": 137.41078073832358,
-      "distinct_items": 164,
-      "mean_pop_rank": 0.8942969066032125
+      "snips_value": 0.7791692365320438,
+      "replay_value": 0.7777777777777778,
+      "replay_retained": 351,
+      "ips_value": 0.8869753434123028,
+      "ips_ess": 137.63550760978265,
+      "distinct_items": 95,
+      "mean_pop_rank": 0.8699883402736467
     },
     {
       "explore_weight": 0.2,
-      "snips_value": 0.6954607780734178,
-      "replay_value": 0.6976047904191617,
-      "replay_retained": 334,
-      "ips_value": 0.677401278557706,
-      "ips_ess": 127.77707316469942,
-      "distinct_items": 180,
-      "mean_pop_rank": 0.9046947352766213
+      "snips_value": 0.8016799098239415,
+      "replay_value": 0.7786666666666666,
+      "replay_retained": 375,
+      "ips_value": 0.9207541773648061,
+      "ips_ess": 153.40485471352002,
+      "distinct_items": 122,
+      "mean_pop_rank": 0.9037046400951815
     },
     {
       "explore_weight": 0.3,
-      "snips_value": 0.6624749920808908,
-      "replay_value": 0.6834319526627219,
-      "replay_retained": 338,
-      "ips_value": 0.6387938662835421,
-      "ips_ess": 124.57652237057462,
-      "distinct_items": 190,
-      "mean_pop_rank": 0.9087786139202856
+      "snips_value": 0.7752430384517986,
+      "replay_value": 0.753731343283582,
+      "replay_retained": 402,
+      "ips_value": 1.0218397372656707,
+      "ips_ess": 164.8286090789079,
+      "distinct_items": 151,
+      "mean_pop_rank": 0.9029014574657942
     },
     {
       "explore_weight": 0.5,
-      "snips_value": 0.6540661587782792,
-      "replay_value": 0.6542857142857142,
-      "replay_retained": 350,
-      "ips_value": 0.6406207372993499,
-      "ips_ess": 123.45170065986731,
-      "distinct_items": 195,
-      "mean_pop_rank": 0.9141377751338489
+      "snips_value": 0.7029968470905298,
+      "replay_value": 0.7027649769585254,
+      "replay_retained": 434,
+      "ips_value": 0.9661070505850896,
+      "ips_ess": 174.55222169598505,
+      "distinct_items": 218,
+      "mean_pop_rank": 0.8866709994051162
     },
     {
       "explore_weight": 1.0,
-      "snips_value": 0.5844789301427945,
-      "replay_value": 0.572289156626506,
-      "replay_retained": 332,
-      "ips_value": 0.5575741125452774,
-      "ips_ess": 125.1583275848455,
-      "distinct_items": 196,
-      "mean_pop_rank": 0.9165254312908983
+      "snips_value": 0.5599371900276316,
+      "replay_value": 0.5737327188940092,
+      "replay_retained": 434,
+      "ips_value": 0.8694566233485695,
+      "ips_ess": 182.2233372818513,
+      "distinct_items": 273,
+      "mean_pop_rank": 0.8562364366448543
     }
   ],
   "notes": {

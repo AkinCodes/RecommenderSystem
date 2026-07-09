@@ -97,17 +97,17 @@ final = (1 - w) · norm(dlrm_score) + w · norm(bonus)
 
 | Policy | SNIPS reward | Distinct items (coverage) | Mean pop-rank |
 |--------|-------------|---------------------------|---------------|
-| DLRM (pure exploit, `w=0`) | **0.731** | 107 | 0.847 |
-| Bandit `w=0.1` | 0.700 | 164 | 0.894 |
-| Bandit `w=0.2` (**served default**) | 0.696 | 180 | 0.905 |
-| Bandit `w=0.3` | 0.663 | 190 | 0.909 |
-| Bandit `w=0.5` | 0.654 | 195 | 0.914 |
-| Bandit `w=1.0` (pure explore) | 0.585 | 196 | 0.917 |
+| DLRM (pure exploit, `w=0`) | **0.788** | 81 | 0.848 |
+| Bandit `w=0.1` | 0.779 | 95 | 0.870 |
+| Bandit `w=0.2` (**served default**) | **0.802** | 122 | 0.904 |
+| Bandit `w=0.3` | 0.775 | 151 | 0.903 |
+| Bandit `w=0.5` | 0.703 | 218 | 0.887 |
+| Bandit `w=1.0` (pure explore) | 0.560 | 273 | 0.856 |
 | Most-Popular (reference) | 0.754 | 58 | 0.997 |
 
-**Owning the tradeoff:** exploration buys catalog coverage at a small, tunable reward cost. At the served `w = 0.2` the bandit keeps ~95% of the pure-DLRM SNIPS reward (0.696 vs 0.731) while lifting distinct-item coverage from 107 → 180 (+68%). Lower `w` (0.1) keeps ~96% of reward for +57 items. `w = 0` reproduces pure DLRM exactly (a sanity check that the blend is correct). The frontier plot is `experiments/results/bandit_explore_frontier.png` and the raw numbers are in `experiments/results/bandit_offline_eval.json`.
+**Owning the tradeoff:** exploration buys catalog coverage, and on this replay the cost is negative at the served operating point. At `w = 0.2` the bandit **matches (slightly exceeds) the pure-DLRM SNIPS reward** (0.802 vs 0.788, ~102%) while lifting distinct-item coverage from 81 → 122 (+51%) — a genuine free-lunch point where a little exploration surfaces more of the catalog without a measurable reward cost. Reward holds through `w = 0.3` (0.775, 151 items) and only drops off at `w = 0.5` (0.703, 218 items) and `w = 1.0` (0.560, 273 items), where coverage is highest. Lower `w` (0.1) keeps ~99% of reward for +14 items. `w = 0` reproduces pure DLRM exactly (a sanity check that the blend is correct). This near-costless small-`w` region is a replay artifact of a static dataset — treat it as evidence the mechanism is sound, not as a guaranteed online reward lift. The frontier plot is `experiments/results/bandit_explore_frontier.png` and the raw numbers are in `experiments/results/bandit_offline_eval.json`.
 
-**Propensity & popularity honesty.** MovieLens was not logged under a known randomized policy, so we use a *documented stand-in* propensity (softmax over training popularity), **renormalized within each event's candidate pool**. Because of that pool-local renormalization the **absolute IPS scale is uninterpretable** — use **SNIPS** (invariant to a constant scaling of the weights) for all cross-policy comparison. Most-Popular's higher SNIPS/replay reward is a **self-selection / replay artifact**: it retains a tiny, favorably-biased subset of events (only where the single most-popular candidate happened to be the logged, liked item), and its IPS collapses (0.40) and coverage is the lowest (58 distinct items). It is **not** evidence that popularity beats DLRM.
+**Propensity & popularity honesty.** MovieLens was not logged under a known randomized policy, so we use a *documented stand-in* propensity (softmax over training popularity), **renormalized within each event's candidate pool**. Because of that pool-local renormalization the **absolute IPS scale is uninterpretable** — use **SNIPS** (invariant to a constant scaling of the weights) for all cross-policy comparison. Most-Popular's SNIPS reward (0.754) sits **below** both pure DLRM and the served bandit, and its replay reward is a **self-selection / replay artifact**: it retains a tiny, favorably-biased subset of events (only where the single most-popular candidate happened to be the logged, liked item), while its IPS collapses (0.40) and its coverage is the lowest (58 distinct items). It is **not** evidence that popularity beats DLRM.
 
 **Honest caveats / limitations of this measurement:**
 

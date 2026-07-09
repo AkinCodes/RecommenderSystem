@@ -271,15 +271,15 @@ Pure exploitation always shows a user the items the DLRM already scores highest,
 
 | explore weight `w` | reward (SNIPS) | catalog coverage (distinct items) |
 |---|---|---|
-| 0.0 (pure DLRM) | 0.731 | 107 |
-| 0.1 | 0.700 | 164 |
-| **0.2 (served default)** | **0.695** | **180** |
-| 0.3 | 0.662 | 190 |
-| 0.5 | 0.654 | 195 |
-| 1.0 (pure explore) | 0.585 | 196 |
+| 0.0 (pure DLRM) | 0.788 | 81 |
+| 0.1 | 0.779 | 95 |
+| **0.2 (served default)** | **0.802** | **122** |
+| 0.3 | 0.775 | 151 |
+| 0.5 | 0.703 | 218 |
+| 1.0 (pure explore) | 0.560 | 273 |
 | Most-Popular (reference) | 0.754 | 58 |
 
-At the default `w = 0.2` the bandit keeps **~95% of the DLRM's reward** while lifting **catalog coverage +68% (107 → 180 distinct items)**. Most-Popular's higher SNIPS is a self-selection/replay artifact — it retains a tiny, popularity-biased subset of events while surfacing only 58 items (SNIPS is the estimator to trust here; absolute IPS is uninterpretable). MovieLens is static, so exploration is replay-simulated — the true online lift can only come from a live A/B test.
+At the default `w = 0.2` the bandit **matches (slightly exceeds) the DLRM's reward** (SNIPS 0.802 vs 0.788, ~102%) while lifting **catalog coverage +51% (81 → 122 distinct items)** — a rare free-lunch point on this replay, so a little exploration is essentially costless here. Reward only starts to fall past `w = 0.3` (0.775, 151 items); coverage keeps climbing to `w = 1.0` (273 items). Most-Popular's SNIPS (0.754) sits below both pure DLRM and the served bandit while surfacing only 58 items — its replay reward is a self-selection/replay artifact (SNIPS is the estimator to trust here; absolute IPS is uninterpretable). MovieLens is static, so exploration is replay-simulated — the true online lift can only come from a live A/B test.
 
 ```bash
 # Explore-aware recommendations (returns dlrm_score, exploration_bonus, is_exploratory per item)
