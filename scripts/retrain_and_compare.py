@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import pickle
+import random
 import sys
 import time
 
@@ -44,6 +45,7 @@ DROPOUT = 0.2
 EARLY_STOP_PATIENCE = 5
 DEVICE = "cpu"
 K = 10
+SEED = 42
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,8 +53,9 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
-np.random.seed(42)
-torch.manual_seed(42)
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
 
 
 class MovieLensDataset(Dataset):
@@ -172,7 +175,10 @@ def train_dlrm(train_cont, train_cat, train_targets,
     print(f"  Trainable parameters: {trainable_params:,}")
 
     train_ds = MovieLensDataset(train_cont, train_cat, train_targets)
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
+    train_loader = DataLoader(
+        train_ds, batch_size=BATCH_SIZE, shuffle=True,
+        generator=torch.Generator().manual_seed(SEED),
+    )
 
     criterion = nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
@@ -292,19 +298,17 @@ def main():
     print(f"  Users: {len(user2idx)}, Items: {len(item2idx)}")
     print(f"  Label balance: {train_targets.mean():.1%} positive (rating >= 4)")
 
+    # Track each candidate's source ROW index (parallel to item_indices order)
+    # so DLRM can score every candidate with ITS OWN continuous features.
     user_test = {}
+    user_rows = {}
     for i in range(len(test_raw)):
         uid = test_raw[i, 0]
         uidx = user2idx[uid]
         iidx = int(test_cat[i, 1])
         rating = test_targets[i]
         user_test.setdefault(uidx, []).append((iidx, rating))
-
-    user_cont_map = {}
-    for i in range(len(test_raw)):
-        uidx = int(test_cat[i, 0])
-        if uidx not in user_cont_map:
-            user_cont_map[uidx] = test_cont[i]
+        user_rows.setdefault(uidx, []).append(i)
 
     print("\n[2/5] Training DLRM...")
     model, dlrm_train_time, dlrm_param_count = train_dlrm(
@@ -315,8 +319,10 @@ def main():
 
     def dlrm_rank(uidx, item_indices):
         n = len(item_indices)
+        # Score each candidate with its OWN continuous row (item_indices and
+        # user_rows[uidx] are built in the same order), not one tiled row.
         cont_tensor = torch.tensor(
-            np.tile(user_cont_map[uidx], (n, 1)), dtype=torch.float32
+            test_cont[user_rows[uidx]], dtype=torch.float32
         )
         cat_tensor = torch.zeros(n, 2, dtype=torch.long)
         cat_tensor[:, 0] = uidx

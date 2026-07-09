@@ -2,6 +2,7 @@
 
 import os
 import pickle
+import random
 import sys
 import time
 
@@ -18,11 +19,12 @@ from data.preprocessing import (
     MAX_RATING_VAR,
     NUM_FEATURES,
     RATING_MAX,
+    PrepConfig,
     compute_item_stats,
     compute_max_user_days,
     compute_user_stats,
     load_movielens_data,
-    prepare_splits,
+    prepare_train_val_test,
 )
 from models.dlrm import DLRMModel
 
@@ -40,6 +42,7 @@ DROPOUT = 0.2
 EARLY_STOP_PATIENCE = 5
 DEVICE = "cpu"
 K = 10
+SEED = 42
 
 
 class MovieLensDataset(Dataset):
@@ -72,19 +75,16 @@ def ndcg_at_k(ranked_relevances, k):
 def evaluate(model, test_cont, test_cat, test_targets, user2idx, item2idx, test_raw, k=K):
     model.eval()
 
+    # Keep each candidate's source ROW index so we can score it with ITS OWN
+    # continuous features (item_mean/count/popularity, user×item interaction),
+    # not one tiled row that would be wrong for every candidate but one.
     user_test = {}
     for i in range(len(test_raw)):
         uid = test_raw[i, 0]
         uidx = user2idx[uid]
         iidx = int(test_cat[i, 1])
         rating = test_targets[i]
-        user_test.setdefault(uidx, []).append((iidx, rating))
-
-    user_cont = {}
-    for i in range(len(test_raw)):
-        uidx = int(test_cat[i, 0])
-        if uidx not in user_cont:
-            user_cont[uidx] = test_cont[i]
+        user_test.setdefault(uidx, []).append((iidx, rating, i))
 
     ndcgs, precisions, recalls, hit_rates = [], [], [], []
     all_labels, all_scores = [], []
@@ -94,17 +94,17 @@ def evaluate(model, test_cont, test_cat, test_targets, user2idx, item2idx, test_
             if len(items_ratings) < 2:
                 continue
 
-            relevant = {iidx for iidx, r in items_ratings if r >= 1.0}
+            relevant = {iidx for iidx, r, _ in items_ratings if r >= 1.0}
             if len(relevant) == 0:
                 continue
 
             item_indices = [ir[0] for ir in items_ratings]
-            n = len(item_indices)
+            row_idxs = [ir[2] for ir in items_ratings]
 
-            cont_tensor = torch.tensor(
-                np.tile(user_cont[uidx], (n, 1)), dtype=torch.float32
-            )
-            cat_tensor = torch.zeros(n, 2, dtype=torch.long)
+            # Each candidate scored with its OWN continuous row (via row_idxs);
+            # the categorical tensor (user id + item id) is unchanged.
+            cont_tensor = torch.tensor(test_cont[row_idxs], dtype=torch.float32)
+            cat_tensor = torch.zeros(len(item_indices), 2, dtype=torch.long)
             cat_tensor[:, 0] = uidx
             cat_tensor[:, 1] = torch.tensor(item_indices, dtype=torch.long)
 
@@ -112,7 +112,7 @@ def evaluate(model, test_cont, test_cat, test_targets, user2idx, item2idx, test_
             if scores.ndim == 0:
                 scores = np.array([scores.item()])
 
-            for idx_j, (iidx, r) in enumerate(items_ratings):
+            for idx_j, (iidx, r, _) in enumerate(items_ratings):
                 all_labels.append(1.0 if r >= 1.0 else 0.0)
                 all_scores.append(float(scores[idx_j]))
 
@@ -145,6 +145,11 @@ def evaluate(model, test_cont, test_cat, test_targets, user2idx, item2idx, test_
 
 
 def main():
+    # Seed everything so runs are reproducible to the digit.
+    random.seed(SEED)
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
+
     print("=" * 60)
     print("DLRM Training on MovieLens 100K")
     print("=" * 60)
@@ -173,10 +178,14 @@ def main():
     print("\n[1/4] Loading data...")
     raw = load_movielens_data(DATA_PATH)
     print(f"  Total ratings: {len(raw)}")
-    (train_cont, train_cat, train_targets,
-     test_cont, test_cat, test_targets,
-     user2idx, item2idx, test_raw) = prepare_splits(raw)
+    splits = prepare_train_val_test(raw)
+    train_cont, train_cat, train_targets = splits.train_cont, splits.train_cat, splits.train_targets
+    val_cont, val_cat, val_targets = splits.val_cont, splits.val_cat, splits.val_targets
+    test_cont, test_cat, test_targets = splits.test_cont, splits.test_cat, splits.test_targets
+    user2idx, item2idx = splits.user2idx, splits.item2idx
+    val_raw, test_raw = splits.val_raw, splits.test_raw
     print(f"  Train samples: {len(train_targets)}")
+    print(f"  Val samples:   {len(val_targets)}")
     print(f"  Test samples:  {len(test_targets)}")
     print(f"  Users: {len(user2idx)}, Items: {len(item2idx)}")
 
@@ -196,16 +205,26 @@ def main():
     print(f"  Trainable parameters: {trainable_params:,}")
 
     train_ds = MovieLensDataset(train_cont, train_cat, train_targets)
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
+    train_loader = DataLoader(
+        train_ds, batch_size=BATCH_SIZE, shuffle=True,
+        generator=torch.Generator().manual_seed(SEED),
+    )
 
     print(f"\n[3/4] Training for {EPOCHS} epochs (batch_size={BATCH_SIZE}, lr={LR})...")
     criterion = nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, factor=0.5)
 
+    # Validation tensors built once; validation drives all training decisions.
+    val_cont_t = torch.tensor(val_cont, dtype=torch.float32)
+    val_cat_t = torch.tensor(val_cat, dtype=torch.long)
+    val_targets_t = torch.tensor(val_targets, dtype=torch.float32)
+
     best_loss = float("inf")
     best_state = None
+    best_val_ndcg = 0.0
     epochs_no_improve = 0
+    early_stopped_epoch = None
 
     train_start = time.time()
     for epoch in range(1, EPOCHS + 1):
@@ -220,27 +239,40 @@ def main():
             optimizer.step()
             epoch_loss += loss.item()
             n_batches += 1
-        avg_loss = epoch_loss / n_batches
+        train_loss = epoch_loss / n_batches
 
-        scheduler.step(avg_loss)
+        # Validation pass: loss drives scheduler / best-model / early stopping.
+        model.eval()
+        with torch.no_grad():
+            val_preds = model(val_cont_t, val_cat_t).squeeze()
+            val_loss = criterion(val_preds, val_targets_t).item()
+        val_metrics = evaluate(model, val_cont, val_cat, val_targets, user2idx, item2idx, val_raw)
+        val_ndcg = val_metrics["NDCG@10"]
+
+        scheduler.step(val_loss)
         current_lr = optimizer.param_groups[0]["lr"]
 
-        if avg_loss < best_loss:
-            best_loss = avg_loss
+        if val_loss < best_loss:
+            best_loss = val_loss
+            best_val_ndcg = val_ndcg
             best_state = {k: v.clone() for k, v in model.state_dict().items()}
             epochs_no_improve = 0
         else:
             epochs_no_improve += 1
 
         wandb.log({
-            "train_loss": avg_loss,
+            "train_loss": train_loss,
+            "val_loss": val_loss,
+            "val_ndcg": val_ndcg,
             "epoch": epoch,
             "learning_rate": current_lr,
             "epochs_no_improve": epochs_no_improve,
         })
-        print(f"  Epoch {epoch:2d}/{EPOCHS} — train loss: {avg_loss:.6f}  lr: {current_lr:.6f}  no_improve: {epochs_no_improve}")
+        print(f"  Epoch {epoch:2d}/{EPOCHS} — train loss: {train_loss:.6f}  val loss: {val_loss:.6f}  "
+              f"val NDCG@10: {val_ndcg:.4f}  lr: {current_lr:.6f}  no_improve: {epochs_no_improve}")
 
         if epochs_no_improve >= EARLY_STOP_PATIENCE:
+            early_stopped_epoch = epoch
             print(f"  Early stopping triggered after {epoch} epochs (no improvement for {EARLY_STOP_PATIENCE} epochs)")
             wandb.log({"early_stopped_epoch": epoch})
             break
@@ -251,12 +283,19 @@ def main():
     if best_state is not None:
         model.load_state_dict(best_state)
         print("  Restored best model weights")
+    print(f"  Best val loss: {best_loss:.6f}  (val NDCG@10 at best: {best_val_ndcg:.4f})")
 
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
     print(f"  Model saved to {MODEL_SAVE_PATH}")
 
     idx2item = {v: k for k, v in item2idx.items()}
-    train_raw_serve = raw[:int(len(raw) * 0.8)]
+    # Serving stats must come from the SAME train portion the model trained on
+    # (first `train_ratio - val_ratio` of timestamp-sorted rows) to avoid
+    # train/serve skew. This reconstructs prepare_train_val_test's train slice.
+    prep_cfg = PrepConfig()
+    raw_sorted = raw[np.argsort(raw[:, 3])]
+    train_split_serve = int(len(raw_sorted) * (prep_cfg.train_ratio - prep_cfg.val_ratio))
+    train_raw_serve = raw_sorted[:train_split_serve]
     user_ratings_serve, max_count_serve, user_timestamps_serve = compute_user_stats(train_raw_serve)
     item_ratings_serve, item_max_count_serve, item_popularity_rank_serve = compute_item_stats(train_raw_serve)
     max_user_days_serve = compute_max_user_days(user_timestamps_serve)
@@ -341,6 +380,10 @@ def main():
     print(f"  Embeddings:   user({CARDINALITIES[0]}x{EMBEDDING_DIM}), item({CARDINALITIES[1]}x{EMBEDDING_DIM})")
     print(f"  MLP layers:   {MLP_LAYERS}")
     print(f"  Training:     {EPOCHS} epochs in {train_time:.1f}s")
+    if early_stopped_epoch is not None:
+        print(f"  Early stop:   epoch {early_stopped_epoch}")
+    print(f"  Best val loss:{best_loss:.6f}  (val NDCG@10: {best_val_ndcg:.4f})")
+    print("  --- TEST (final exam) ---")
     print(f"  NDCG@10:      {metrics['NDCG@10']:.4f}")
     print(f"  Precision@10: {metrics['Precision@10']:.4f}")
     print(f"  Recall@10:    {metrics['Recall@10']:.4f}")

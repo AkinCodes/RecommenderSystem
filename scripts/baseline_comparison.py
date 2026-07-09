@@ -104,19 +104,17 @@ def main():
     print(f"Train: {len(train_raw)}, Test: {len(test_raw)}")
     print(f"Users: {len(user2idx)}, Items: {len(item2idx)}\n")
 
+    # Track each candidate's source ROW index (parallel to item_indices order)
+    # so DLRM can score every candidate with ITS OWN continuous features.
     user_test = {}
+    user_rows = {}
     for i in range(len(test_raw)):
         uid = test_raw[i, 0]
         uidx = user2idx[uid]
         iidx = int(test_cat[i, 1])
         rating = test_targets[i]
         user_test.setdefault(uidx, []).append((iidx, rating))
-
-    user_cont_map = {}
-    for i in range(len(test_raw)):
-        uidx = int(test_cat[i, 0])
-        if uidx not in user_cont_map:
-            user_cont_map[uidx] = test_cont[i]
+        user_rows.setdefault(uidx, []).append(i)
 
     print("Running Baseline 1: Random...")
 
@@ -182,7 +180,9 @@ def main():
 
     def dlrm_rank(uidx, item_indices):
         n = len(item_indices)
-        cont_tensor = torch.tensor(np.tile(user_cont_map[uidx], (n, 1)), dtype=torch.float32)
+        # Score each candidate with its OWN continuous row (item_indices and
+        # user_rows[uidx] are built in the same order), not one tiled row.
+        cont_tensor = torch.tensor(test_cont[user_rows[uidx]], dtype=torch.float32)
         cat_tensor = torch.zeros(n, 2, dtype=torch.long)
         cat_tensor[:, 0] = uidx
         cat_tensor[:, 1] = torch.tensor(item_indices, dtype=torch.long)

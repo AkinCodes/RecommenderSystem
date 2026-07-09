@@ -30,6 +30,8 @@ class PrepConfig:
     min_interactions_warn: int = MIN_INTERACTIONS_WARN
     max_rating_var: float = MAX_RATING_VAR
     train_ratio: float = 0.8
+    # Used only by prepare_train_val_test (three-way split); does not affect prepare_splits.
+    val_ratio: float = 0.1
 
 
 def validate_raw_data(raw: np.ndarray, config: Optional[PrepConfig] = None) -> None:
@@ -238,6 +240,49 @@ def validate_splits(train_raw: np.ndarray, test_raw: np.ndarray,
     )
 
 
+@dataclass
+class Splits:
+    """Container for a strict three-way (train/val/test) split with features.
+
+    All feature blocks are built from TRAIN-only user/item statistics, so there
+    is no leakage from validation or test into the engineered features.
+    """
+
+    train_cont: np.ndarray
+    train_cat: np.ndarray
+    train_targets: np.ndarray
+    val_cont: np.ndarray
+    val_cat: np.ndarray
+    val_targets: np.ndarray
+    test_cont: np.ndarray
+    test_cat: np.ndarray
+    test_targets: np.ndarray
+    user2idx: dict
+    item2idx: dict
+    val_raw: np.ndarray
+    test_raw: np.ndarray
+
+
+def _compute_train_stats(train_raw: np.ndarray):
+    """Compute all TRAIN-only stats needed to build features for any slice.
+
+    Returns a dict of keyword args ready to splat into ``make_features`` so val
+    and test features are derived from train statistics only (no leakage).
+    """
+    user_ratings, max_count, user_timestamps = compute_user_stats(train_raw)
+    item_ratings, item_max_count, item_popularity_rank = compute_item_stats(train_raw)
+    max_user_days = compute_max_user_days(user_timestamps)
+    return {
+        "user_ratings_dict": user_ratings,
+        "max_count": max_count,
+        "user_timestamps": user_timestamps,
+        "item_ratings_dict": item_ratings,
+        "item_max_count": item_max_count,
+        "item_popularity_rank": item_popularity_rank,
+        "max_user_days": max_user_days,
+    }
+
+
 def prepare_splits(raw: np.ndarray, config: Optional[PrepConfig] = None):
     """Timestamp-based split with feature engineering."""
     config = config or PrepConfig()
@@ -250,24 +295,73 @@ def prepare_splits(raw: np.ndarray, config: Optional[PrepConfig] = None):
 
     user2idx, item2idx = build_id_mappings(raw)
     validate_splits(train_raw, test_raw, user2idx, item2idx)
-    user_ratings, max_count, user_timestamps = compute_user_stats(train_raw)
-    item_ratings, item_max_count, item_popularity_rank = compute_item_stats(train_raw)
-    max_user_days = compute_max_user_days(user_timestamps)
+    stats = _compute_train_stats(train_raw)
 
     train_cont, train_cat, train_targets = make_features(
-        train_raw, user2idx, item2idx, user_ratings, max_count,
-        user_timestamps, item_ratings, item_max_count,
-        item_popularity_rank, max_user_days,
+        train_raw, user2idx, item2idx, **stats,
     )
     test_cont, test_cat, test_targets = make_features(
-        test_raw, user2idx, item2idx, user_ratings, max_count,
-        user_timestamps, item_ratings, item_max_count,
-        item_popularity_rank, max_user_days,
+        test_raw, user2idx, item2idx, **stats,
     )
 
     return (train_cont, train_cat, train_targets,
             test_cont, test_cat, test_targets,
             user2idx, item2idx, test_raw)
+
+
+def prepare_train_val_test(raw: np.ndarray, config: Optional[PrepConfig] = None) -> Splits:
+    """Strict timestamp-ordered three-way split (train / val / test).
+
+    The test *interactions and labels* are the IDENTICAL held-out slice produced
+    by ``prepare_splits`` (the last ``1 - train_ratio`` fraction by timestamp).
+    The engineered test *features*, however, differ slightly: user/item stats are
+    now computed from the smaller 70% train portion (vs 80% in ``prepare_splits``),
+    so the same test rows carry marginally different feature values. An
+    old-vs-new metric delta therefore reflects the combined methodology change
+    (adding a validation split), NOT a controlled A/B on the same features.
+    Validation is carved from the tail of the first ``train_ratio`` portion.
+    With defaults (train_ratio=0.8, val_ratio=0.1) this yields a
+    0.70 / 0.10 / 0.20 train/val/test split.
+
+    User/item statistics are computed from the TRAIN portion ONLY; val and test
+    features are built from those train-only stats to avoid any leakage.
+    """
+    config = config or PrepConfig()
+    sorted_idx = np.argsort(raw[:, 3])
+    raw = raw[sorted_idx]
+
+    n = len(raw)
+    # Test boundary matches prepare_splits exactly for comparability.
+    test_split = int(n * config.train_ratio)
+    # Validation is carved from the tail of the first `train_ratio` portion.
+    val_split = int(n * (config.train_ratio - config.val_ratio))
+
+    train_raw = raw[:val_split]
+    val_raw = raw[val_split:test_split]
+    test_raw = raw[test_split:]
+
+    user2idx, item2idx = build_id_mappings(raw)
+    validate_splits(train_raw, test_raw, user2idx, item2idx)
+    # Stats from TRAIN ONLY — val and test features reuse these (no leakage).
+    stats = _compute_train_stats(train_raw)
+
+    train_cont, train_cat, train_targets = make_features(
+        train_raw, user2idx, item2idx, **stats,
+    )
+    val_cont, val_cat, val_targets = make_features(
+        val_raw, user2idx, item2idx, **stats,
+    )
+    test_cont, test_cat, test_targets = make_features(
+        test_raw, user2idx, item2idx, **stats,
+    )
+
+    return Splits(
+        train_cont=train_cont, train_cat=train_cat, train_targets=train_targets,
+        val_cont=val_cont, val_cat=val_cat, val_targets=val_targets,
+        test_cont=test_cont, test_cat=test_cat, test_targets=test_targets,
+        user2idx=user2idx, item2idx=item2idx,
+        val_raw=val_raw, test_raw=test_raw,
+    )
 
 
 def load_item_metadata(data_dir: str) -> dict:
