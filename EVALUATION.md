@@ -22,16 +22,16 @@ Head-to-head comparison of the DLRM against classical baselines on the MovieLens
 
 **HitRate caveat.** HitRate@10 is **0.9965**, but it is near-saturated by the per-user candidate design (a random baseline scores ~0.996), so it is reported for completeness, not as a discriminator between models.
 
-**Fair head-to-head comparison.** Under identical matched conditions (`scripts/retrain_and_compare.py` — 2-way split, train-loss model selection, the same fixed per-item evaluation for all models):
+**Matched head-to-head comparison.** Under identical matched conditions (`scripts/retrain_and_compare.py`): the DLRM trains with the same 3-way split and validation-driven early stopping as the production trainer, and every model — DLRM, XGBoost, LightGBM, LogReg — fits on the **same 0.70 train portion** and is evaluated on the **same unchanged 0.20 test set** with the same fixed per-item evaluation. The comparison DLRM is now **0.7861**, identical to the production trainer, which resolves the earlier "two DLRM numbers" inconsistency:
 
 | Model | NDCG@10 | Precision@10 | Recall@10 | HitRate@10 | AUC |
 |-------|---------|--------------|-----------|------------|-----|
-| LogReg | 0.8023 | 0.6880 | — | 1.0000 | 0.6818 |
-| XGBoost | 0.7836 | 0.6707 | — | 1.0000 | 0.6668 |
-| LightGBM | 0.7820 | — | — | — | — |
-| DLRM | 0.7009 | 0.6021 | 0.4018 | 0.9965 | 0.6140 |
+| LogReg | 0.7937 | 0.6823 | 0.4259 | 1.0000 | 0.6807 |
+| DLRM | 0.7861 | 0.6739 | 0.4210 | 0.9965 | 0.6762 |
+| XGBoost | 0.7607 | 0.6491 | 0.4145 | 0.9929 | 0.6629 |
+| LightGBM | 0.7553 | 0.6435 | 0.4152 | 0.9965 | 0.6396 |
 
-> With the eval bug fixed, the comparison is now fair. Under these matched conditions the tree/linear models still lead, but the gap is small and the DLRM is competitive. With the production trainer's validation-driven early stopping, the DLRM reaches **0.7861** NDCG@10 — essentially matching XGBoost (0.7836) and LightGBM (0.7820) — while LogReg (0.8023) still edges ahead, which is expected for a linear model on a small, sparse dataset. The honest takeaway: **the DLRM is now competitive with the classical baselines**, not that it wins.
+> Under these matched conditions the **DLRM (0.7861) now outperforms both tree ensembles** — XGBoost (0.7607) and LightGBM (0.7553) — on NDCG@10, Precision@10, and AUC. A strong linear baseline is still the model to beat: **LogReg (0.7937) edges narrowly ahead of the DLRM**, a legitimate result on a small (100K ratings), sparse, 8-engineered-feature MovieLens setup where a well-scaled linear model captures most of the signal. The honest takeaway: **the DLRM is competitive and now beats the tree ensembles under matched conditions, with a strong linear baseline still narrowly in front** — not that the DLRM wins outright. Classical-baseline numbers can shift marginally with the BLAS/library version.
 
 **What to expect:** On MovieLens 100K, tree-based models (XGBoost, LightGBM) and even LogReg often match or beat simple neural approaches because the dataset is small enough that hand-crafted features capture most of the signal. The DLRM's advantage shows in learning user-item interactions directly from embeddings, but at 100K ratings that advantage is marginal — the value of learned embeddings shows more clearly at scale.
 

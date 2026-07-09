@@ -221,16 +221,16 @@ See [EVALUATION.md](EVALUATION.md) for full ablation studies, failure analysis, 
 
 ### Classical Baselines Comparison
 
-All models are compared under **identical matched conditions** (`scripts/retrain_and_compare.py` — 2-way split, train-loss model selection, and the same fixed per-item evaluation for every model):
+All models are compared under **identical matched conditions** (`scripts/retrain_and_compare.py`): the DLRM now trains with the same 3-way split and validation-driven early stopping as production, and every model — DLRM, XGBoost, LightGBM, LogReg — fits on the **same 0.70 train portion** and is scored on the **same unchanged 0.20 test set** with the same fixed per-item evaluation. This is a genuine apples-to-apples head-to-head.
 
-| Model | Approach | NDCG@10 | Prec@10 | Hit@10 | AUC |
-|-------|----------|---------|---------|--------|-----|
-| **LogReg** | StandardScaler → Logistic Regression (C=1.0, lbfgs) on 8 features | **0.8023** | **0.6880** | **1.0000** | 0.6818 |
-| XGBoost | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 features | 0.7836 | 0.6707 | 1.0000 | 0.6668 |
-| LightGBM | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 features | 0.7820 | — | — | — |
-| DLRM | Learned user/item embeddings (64-dim) + interaction + 3-layer MLP | 0.7009 | 0.6021 | 0.9965 | 0.6140 |
+| Model | Approach | NDCG@10 | Prec@10 | Recall@10 | Hit@10 | AUC |
+|-------|----------|---------|---------|-----------|--------|-----|
+| **LogReg** | StandardScaler → Logistic Regression (C=1.0, lbfgs) on 8 features | **0.7937** | **0.6823** | 0.4259 | **1.0000** | **0.6807** |
+| DLRM | Learned user/item embeddings (64-dim) + interaction + 3-layer MLP | 0.7861 | 0.6739 | 0.4210 | 0.9965 | 0.6762 |
+| XGBoost | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 features | 0.7607 | 0.6491 | 0.4145 | 0.9929 | 0.6629 |
+| LightGBM | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 features | 0.7553 | 0.6435 | 0.4152 | 0.9965 | 0.6396 |
 
-> **Fair comparison, honest takeaway:** the earlier eval bug (every candidate scored with one item's continuous features via `np.tile`) is fixed across `train_movielens.py`, `baseline_comparison.py`, and `retrain_and_compare.py`, so this is a fair head-to-head. Under these matched conditions the tree/linear models still lead, but the gap is small and the DLRM is competitive. With the production trainer's validation-driven early stopping the DLRM reaches **0.7861** NDCG@10 (see the offline-metrics table above) — essentially matching XGBoost (0.7836) and LightGBM (0.7820) — while LogReg (0.8023) still edges ahead, as expected for a linear model on a small, sparse dataset. The DLRM is now **competitive with the classical baselines**, not a winner over them.
+> **Matched comparison, honest takeaway:** under these matched conditions the **DLRM (0.7861) now outperforms both tree ensembles** — XGBoost (0.7607) and LightGBM (0.7553) — on NDCG@10, Precision@10, and AUC. The comparison DLRM is now identical to the production trainer (0.7861), resolving the earlier inconsistency where the comparison reported a spuriously low number. A strong linear baseline is still the model to beat: **LogReg (0.7937) edges narrowly ahead of the DLRM** — a legitimate, interesting result on a small (100K ratings), sparse, 8-engineered-feature MovieLens setup where a well-scaled linear model captures most of the signal. The honest headline: **the DLRM is competitive and now beats the tree ensembles under matched conditions, with a strong linear baseline still narrowly in front.** (Classical-baseline numbers can shift marginally with the BLAS/library version.)
 
 ### Serving Architecture
 

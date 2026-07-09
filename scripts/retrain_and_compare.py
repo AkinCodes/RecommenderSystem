@@ -21,11 +21,13 @@ from data.preprocessing import (
     MAX_RATING_VAR,
     NUM_FEATURES,
     RATING_MAX,
+    PrepConfig,
+    Splits,
     compute_item_stats,
     compute_max_user_days,
     compute_user_stats,
     load_movielens_data,
-    prepare_splits,
+    prepare_train_val_test,
 )
 from models.classical import ClassicalRanker, FeatureBuilder
 from models.dlrm import DLRMModel
@@ -154,10 +156,15 @@ def measure_inference_latency(rank_fn, user_test, n_runs=200):
 
 
 def train_dlrm(train_cont, train_cat, train_targets,
-               test_cont, test_cat, test_targets,
-               user2idx, item2idx, test_raw, raw):
+               val_cont, val_cat, val_targets,
+               user2idx, item2idx, raw):
+    # Validation-driven training regime, mirroring scripts/train_movielens.py:
+    # the DLRM trains on the 0.70 TRAIN slice only; the 0.10 VAL slice drives the
+    # scheduler / best-model selection / early stopping (never used as training
+    # data). The 0.20 TEST slice is untouched here and reserved for evaluation,
+    # so every model (DLRM + classicals) is scored on the SAME held-out test set.
     print("\n" + "=" * 60)
-    print("TRAINING DLRM (8-feature architecture, no wandb)")
+    print("TRAINING DLRM (8-feature architecture, validation-driven, no wandb)")
     print("=" * 60)
 
     model = DLRMModel(
@@ -184,6 +191,13 @@ def train_dlrm(train_cont, train_cat, train_targets,
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, factor=0.5)
 
+    # Validation tensors built once; VAL loss drives every training decision
+    # (scheduler step, best-model selection, early stopping) — same recipe and
+    # settings as scripts/train_movielens.py.
+    val_cont_t = torch.tensor(val_cont, dtype=torch.float32)
+    val_cat_t = torch.tensor(val_cat, dtype=torch.long)
+    val_targets_t = torch.tensor(val_targets, dtype=torch.float32)
+
     best_loss = float("inf")
     best_state = None
     epochs_no_improve = 0
@@ -202,20 +216,27 @@ def train_dlrm(train_cont, train_cat, train_targets,
             optimizer.step()
             epoch_loss += loss.item()
             n_batches += 1
-        avg_loss = epoch_loss / n_batches
+        train_loss = epoch_loss / n_batches
 
-        scheduler.step(avg_loss)
+        # Validation pass (eval() + no_grad): val loss drives scheduler /
+        # best-model / early stopping, exactly as in train_movielens.py.
+        model.eval()
+        with torch.no_grad():
+            val_preds = model(val_cont_t, val_cat_t).squeeze()
+            val_loss = criterion(val_preds, val_targets_t).item()
+
+        scheduler.step(val_loss)
         current_lr = optimizer.param_groups[0]["lr"]
 
-        if avg_loss < best_loss:
-            best_loss = avg_loss
+        if val_loss < best_loss:
+            best_loss = val_loss
             best_state = {k: v.clone() for k, v in model.state_dict().items()}
             epochs_no_improve = 0
         else:
             epochs_no_improve += 1
 
-        print(f"  Epoch {epoch:2d}/{EPOCHS} -- loss: {avg_loss:.6f}  "
-              f"lr: {current_lr:.6f}  no_improve: {epochs_no_improve}")
+        print(f"  Epoch {epoch:2d}/{EPOCHS} -- train loss: {train_loss:.6f}  "
+              f"val loss: {val_loss:.6f}  lr: {current_lr:.6f}  no_improve: {epochs_no_improve}")
 
         if epochs_no_improve >= EARLY_STOP_PATIENCE:
             print(f"  Early stopping after {epoch} epochs")
@@ -226,16 +247,19 @@ def train_dlrm(train_cont, train_cat, train_targets,
 
     if best_state is not None:
         model.load_state_dict(best_state)
-        print("  Restored best model weights")
+        print(f"  Restored best model weights (best val loss: {best_loss:.6f})")
 
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
     print(f"  Model saved to {MODEL_SAVE_PATH}")
 
     idx2item = {v: k for k, v in item2idx.items()}
-    sorted_idx = np.argsort(raw[:, 3])
-    raw_sorted = raw[sorted_idx]
-    split = int(len(raw_sorted) * 0.8)
-    train_raw_serve = raw_sorted[:split]
+    # Serving stats must come from the SAME 0.70 train portion the model trained
+    # on (first `train_ratio - val_ratio` of timestamp-sorted rows), matching
+    # prepare_train_val_test's train slice, to avoid train/serve skew.
+    prep_cfg = PrepConfig()
+    raw_sorted = raw[np.argsort(raw[:, 3])]
+    train_split_serve = int(len(raw_sorted) * (prep_cfg.train_ratio - prep_cfg.val_ratio))
+    train_raw_serve = raw_sorted[:train_split_serve]
 
     user_ratings_serve, max_count_serve, user_timestamps_serve = compute_user_stats(train_raw_serve)
     item_ratings_serve, item_max_count_serve, item_popularity_rank_serve = compute_item_stats(train_raw_serve)
@@ -277,6 +301,12 @@ def train_dlrm(train_cont, train_cat, train_targets,
 
 
 def main():
+    # Re-seed at the start of main (in addition to module-level seeding) so
+    # results are reproducible to the digit, mirroring train_movielens.py.
+    random.seed(SEED)
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
+
     print("=" * 70)
     print("RETRAIN & COMPARE -- DLRM vs Classical Baselines")
     print(f"NUM_FEATURES = {NUM_FEATURES}, targets = binary (BCELoss)")
@@ -284,17 +314,27 @@ def main():
 
     print("\n[1/5] Loading MovieLens 100K data...")
     raw = load_movielens_data(DATA_PATH)
-    (train_cont, train_cat, train_targets,
-     test_cont, test_cat, test_targets,
-     user2idx, item2idx, test_raw) = prepare_splits(raw)
+    # Strict 3-way split (0.70 train / 0.10 val / 0.20 test), same as the
+    # production trainer scripts/train_movielens.py. The DLRM trains on TRAIN
+    # and early-stops on VAL; classicals train on the SAME TRAIN slice; ALL
+    # models are evaluated on the SAME UNCHANGED TEST slice (0.20).
+    splits: Splits = prepare_train_val_test(raw)
+    train_cont, train_cat, train_targets = splits.train_cont, splits.train_cat, splits.train_targets
+    val_cont, val_cat, val_targets = splits.val_cont, splits.val_cat, splits.val_targets
+    test_cont, test_cat, test_targets = splits.test_cont, splits.test_cat, splits.test_targets
+    user2idx, item2idx = splits.user2idx, splits.item2idx
+    test_raw = splits.test_raw
 
-    sorted_idx = np.argsort(raw[:, 3])
-    raw_sorted = raw[sorted_idx]
-    split = int(len(raw_sorted) * 0.8)
-    train_raw = raw_sorted[:split]
+    # Reconstruct the 0.70 TRAIN raw rows (matching prepare_train_val_test) so the
+    # classical models train on the EXACT same interactions the DLRM trains on.
+    prep_cfg = PrepConfig()
+    raw_sorted = raw[np.argsort(raw[:, 3])]
+    train_split = int(len(raw_sorted) * (prep_cfg.train_ratio - prep_cfg.val_ratio))
+    train_raw = raw_sorted[:train_split]
 
     print(f"  Total ratings: {len(raw)}")
-    print(f"  Train: {len(train_raw)}, Test: {len(test_raw)}")
+    print(f"  Train: {len(train_raw)} (0.70), Val: {len(val_targets)} (0.10), "
+          f"Test: {len(test_raw)} (0.20)")
     print(f"  Users: {len(user2idx)}, Items: {len(item2idx)}")
     print(f"  Label balance: {train_targets.mean():.1%} positive (rating >= 4)")
 
@@ -313,8 +353,8 @@ def main():
     print("\n[2/5] Training DLRM...")
     model, dlrm_train_time, dlrm_param_count = train_dlrm(
         train_cont, train_cat, train_targets,
-        test_cont, test_cat, test_targets,
-        user2idx, item2idx, test_raw, raw,
+        val_cont, val_cat, val_targets,
+        user2idx, item2idx, raw,
     )
 
     def dlrm_rank(uidx, item_indices):
@@ -367,6 +407,7 @@ def main():
             colsample_bytree=0.8,
             eval_metric="logloss",
             random_state=42,
+            n_jobs=1,  # single-thread => deterministic, environment-independent
             verbosity=0,
         )
         t0 = time.time()
@@ -395,6 +436,7 @@ def main():
             subsample=0.8,
             colsample_bytree=0.8,
             random_state=42,
+            n_jobs=1,  # single-thread => deterministic, environment-independent
             verbose=-1,
         )
         t0 = time.time()
@@ -468,6 +510,7 @@ def main():
         "num_users": len(user2idx),
         "num_items": len(item2idx),
         "train_size": int(len(train_raw)),
+        "val_size": int(len(val_targets)),
         "test_size": int(len(test_raw)),
         "num_features": NUM_FEATURES,
         "dlrm_config": {
