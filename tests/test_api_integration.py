@@ -278,14 +278,23 @@ class TestStructuredErrors:
         assert resp.status_code == 405
 
     def test_custom_http_exception_structured(self, client):
-        # Trigger a 503 by hitting predict without a loaded model
+        # Force the "model not loaded" branch so the 503 is deterministic and
+        # the endpoint never reaches the live TMDB call. Without this patch the
+        # test's outcome depends on whether trained artifacts happen to be
+        # present, and a valid payload would hit the real network.
+        import api.app as app_module
+
         payload = {
             "continuous_features": [0.5] * 8,
             "categorical_features": [1, 2],
         }
-        resp = client.post("/api/v1/predict", json=payload)
-        if resp.status_code in (400, 503):
-            data = resp.json()
-            assert data["success"] is False
-            assert "error" in data
-            assert "detail" in data
+        with (
+            patch.object(app_module, "model_loaded", False),
+            patch.object(app_module, "model", None),
+        ):
+            resp = client.post("/api/v1/predict", json=payload)
+        assert resp.status_code == 503
+        data = resp.json()
+        assert data["success"] is False
+        assert "error" in data
+        assert "detail" in data

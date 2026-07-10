@@ -1,6 +1,6 @@
 import os
 import sys
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import torch
@@ -129,7 +129,16 @@ class TestPredictEndpoint:
             "continuous_features": [0.5, 0.8, 0.1, 0.3, 0.6, 0.4, 0.7, 0.5],
             "categorical_features": [1, 2],
         }
-        with patch("api.app.fetch_real_movies", new_callable=AsyncMock) as mock_fetch:
+        # Force the model-loaded path so the endpoint is exercised even when
+        # the trained .pth artifact is absent (e.g. a clean CI checkout).
+        import api.app as app_module
+
+        fake_model = MagicMock(return_value=torch.tensor([[0.85]]))
+        with (
+            patch.object(app_module, "model_loaded", True),
+            patch.object(app_module, "model", fake_model),
+            patch("api.app.fetch_real_movies", new_callable=AsyncMock) as mock_fetch,
+        ):
             mock_fetch.return_value = [
                 {
                     "title": "Test Movie",
@@ -154,7 +163,14 @@ class TestPredictEndpoint:
             "continuous_features": [0.5, 0.8, 0.1, 0.3, 0.6, 0.4, 0.7, 0.5],
             "categorical_features": [1, 2],
         }
-        with patch("api.app.fetch_real_movies", new_callable=AsyncMock) as mock_fetch:
+        import api.app as app_module
+
+        fake_model = MagicMock(return_value=torch.tensor([[0.72]]))
+        with (
+            patch.object(app_module, "model_loaded", True),
+            patch.object(app_module, "model", fake_model),
+            patch("api.app.fetch_real_movies", new_callable=AsyncMock) as mock_fetch,
+        ):
             mock_fetch.return_value = [
                 {
                     "title": "Legacy Movie",
@@ -176,7 +192,16 @@ class TestPredictEndpoint:
             "continuous_features": [0.5, 0.8, 0.1, 0.3, 0.6, 0.4, 0.7, 0.5],
             "categorical_features": [1],  # too few
         }
-        response = test_client.post("/api/v1/predict", json=payload)
+        # Model must be "loaded" to reach the 400 validation branch; otherwise
+        # the endpoint short-circuits with a 503 before validating the payload.
+        import api.app as app_module
+
+        fake_model = MagicMock(return_value=torch.tensor([[0.5]]))
+        with (
+            patch.object(app_module, "model_loaded", True),
+            patch.object(app_module, "model", fake_model),
+        ):
+            response = test_client.post("/api/v1/predict", json=payload)
         assert response.status_code == 400
         data = response.json()
         assert data["success"] is False

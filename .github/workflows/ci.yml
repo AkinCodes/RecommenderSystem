@@ -33,4 +33,8 @@ jobs:
         run: ruff check models/ api/ data/ tests/
 
       - name: Run Tests
-        run: pytest tests/test_model.py -v --tb=short -k "not predict and not legacy and not 404 and not single_categorical"
+        run: pytest tests/ -v --tb=short
+        # Runs the full suite. Tests that need trained artifacts
+        # (trained_model_movielens.pth / serving_context.pkl / ANN index),
+        # which are gitignored and absent on a clean checkout, skip gracefully
+        # via pytest.mark.skipif rather than failing.
