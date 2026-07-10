@@ -33,6 +33,14 @@ dev = [
 viz = [
     "matplotlib>=3.7.0",
 ]
+# Causal-impact analysis (scripts/causal_impact.py) ONLY. Kept OUT of `dev` on purpose:
+# dowhy pulls numpy/scipy/statsmodels/networkx and can upgrade numpy in a way that breaks
+# torch/faiss. CI runs `pip install ".[dev]"` (see .github/workflows/ci.yml), so CI never
+# installs this extra and the green build is unaffected. Install locally with:
+#     pip install ".[causal]"
+causal = [
+    "dowhy>=0.11",
+]
 
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]

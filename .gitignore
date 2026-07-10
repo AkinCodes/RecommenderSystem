@@ -67,3 +67,4 @@ docs/learning_roadmap/
 /CLASSICAL_COMPARISON.md
 /FAIRNESS_REPORT.md
 experiments/results/default_dlrm_vs_baseline.*
+experiments/results/causal_impact.json
