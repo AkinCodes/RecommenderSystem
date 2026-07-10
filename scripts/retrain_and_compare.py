@@ -141,6 +141,8 @@ def ndcg_at_k(ranked_relevances, k):
 
 def compute_ranking_metrics(user_test, rank_fn, k=K):
     ndcgs, precisions, recalls, hit_rates = [], [], [], []
+    # Additional metrics (SASRec comparison): MRR + Recall at two extra cutoffs.
+    mrrs, recalls_5, recalls_20 = [], [], []
     all_labels, all_scores = [], []
     # Retain the per-user NDCG vector keyed by uidx so the same users can be
     # paired ACROSS models (bootstrap CIs / significance tests downstream).
@@ -177,6 +179,20 @@ def compute_ranking_metrics(user_test, rank_fn, k=K):
         recalls.append(hits_in_k / len(relevant) if relevant else 0.0)
         hit_rates.append(1.0 if hits_in_k > 0 else 0.0)
 
+        # MRR: reciprocal rank of the FIRST relevant item in the full ranking
+        # (0 if none appears). ranked_rels is already in ranked order.
+        rr = 0.0
+        for rank_pos, rel in enumerate(ranked_rels, start=1):
+            if rel > 0.0:
+                rr = 1.0 / rank_pos
+                break
+        mrrs.append(rr)
+
+        # Recall at two extra cutoffs, reusing the same ranked order.
+        for cutoff, bucket in ((5, recalls_5), (20, recalls_20)):
+            hits_c = sum(1 for j in ranked_idx[:cutoff] if item_indices[j] in relevant)
+            bucket.append(hits_c / len(relevant) if relevant else 0.0)
+
     auc = 0.0
     if len(set(all_labels)) > 1:
         auc = roc_auc_score(all_labels, all_scores)
@@ -186,6 +202,9 @@ def compute_ranking_metrics(user_test, rank_fn, k=K):
         "Precision@10": float(np.mean(precisions)) if precisions else 0.0,
         "Recall@10": float(np.mean(recalls)) if recalls else 0.0,
         "HitRate@10": float(np.mean(hit_rates)) if hit_rates else 0.0,
+        "MRR": float(np.mean(mrrs)) if mrrs else 0.0,
+        "Recall@5": float(np.mean(recalls_5)) if recalls_5 else 0.0,
+        "Recall@20": float(np.mean(recalls_20)) if recalls_20 else 0.0,
         "AUC": float(auc),
         "num_eval_users": len(ndcgs),
         "per_user_ndcg": per_user_ndcg,
@@ -538,6 +557,66 @@ def main():
     results.append(("LogReg", logreg_metrics))
     print(f"  LogReg -- NDCG@10: {logreg_metrics['NDCG@10']:.4f}, "
           f"AUC: {logreg_metrics['AUC']:.4f}")
+
+    # ------------------------------------------------------------------ #
+    # SASRec (sequential): trained on the same 0.80 train-slice liked
+    # sequences, then re-ranks the SAME held-out test candidates via
+    # dot(encode(history), item_emb). It goes through the IDENTICAL
+    # compute_ranking_metrics + paired-bootstrap loop below, so the
+    # SASRec-vs-DLRM comparison is apples-to-apples. Additive: import lives
+    # here so the classical path is unaffected if the model is absent.
+    # ------------------------------------------------------------------ #
+    try:
+        from data.preprocessing import build_user_sequences
+        from models.sasrec import SASRec
+        from scripts.train_sasrec import (
+            EMBEDDING_DIM as SAS_DIM,
+        )
+        from scripts.train_sasrec import (
+            MAX_LEN as SAS_MAX_LEN,
+        )
+        from scripts.train_sasrec import (
+            NUM_BLOCKS as SAS_BLOCKS,
+        )
+        from scripts.train_sasrec import (
+            NUM_HEADS as SAS_HEADS,
+        )
+        from scripts.train_sasrec import (
+            build_loo_pairs,
+            build_training_examples,
+            make_sasrec_rank_fn,
+        )
+        from scripts.train_sasrec import (
+            train as train_sasrec,
+        )
+
+        print("\n  Training SASRec (sequential, BPR next-item)...")
+        torch.manual_seed(SEED)
+        np.random.seed(SEED)
+        seqs_item2idx = build_user_sequences(raw, item2idx, like_threshold=4, train_ratio=0.8)
+        seqs_sasrec = {u: [i + 1 for i in ids] for u, ids in seqs_item2idx.items()}
+        sas_train_seqs = {u: ids[:-1] for u, ids in seqs_sasrec.items() if len(ids) >= 2}
+        sas_loo_pairs = build_loo_pairs(seqs_sasrec)
+        sas_examples, sas_pos_sets = build_training_examples(sas_train_seqs)
+
+        sasrec = SASRec(
+            num_items=len(item2idx), embedding_dim=SAS_DIM, max_len=SAS_MAX_LEN,
+            num_blocks=SAS_BLOCKS, num_heads=SAS_HEADS, dropout=DROPOUT,
+        )
+        t0 = time.time()
+        train_sasrec(sasrec, sas_examples, sas_pos_sets, len(item2idx),
+                     sas_loo_pairs, sas_train_seqs)
+        sas_time = time.time() - t0
+
+        sas_rank = make_sasrec_rank_fn(sasrec, seqs_item2idx, user2idx)
+        sas_metrics = compute_ranking_metrics(user_test, sas_rank, k=K)
+        sas_metrics["train_time"] = sas_time
+        sas_metrics["latency_ms"] = measure_inference_latency(sas_rank, user_test)
+        results.append(("SASRec", sas_metrics))
+        print(f"  SASRec -- NDCG@10: {sas_metrics['NDCG@10']:.4f}, "
+              f"MRR: {sas_metrics['MRR']:.4f}, AUC: {sas_metrics['AUC']:.4f}")
+    except Exception as exc:  # noqa: BLE001 -- keep the classical comparison intact
+        print(f"  [SKIP] SASRec comparison unavailable: {exc}")
 
     print("\n\n[5/5] Results")
     print("=" * 70)

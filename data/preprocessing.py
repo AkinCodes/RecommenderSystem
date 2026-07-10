@@ -364,6 +364,49 @@ def prepare_train_val_test(raw: np.ndarray, config: Optional[PrepConfig] = None)
     )
 
 
+def build_user_sequences(
+    raw: np.ndarray,
+    item2idx: dict,
+    like_threshold: int = 4,
+    train_ratio: float = 0.8,
+) -> dict:
+    """Build per-user chronological liked-item sequences from the TRAIN slice.
+
+    Mirrors the timestamp-ordered 80% split and the "rating >= 4 is a like"
+    convention used elsewhere (see api/app.py's user_history and prepare_splits).
+    Pure function: reads ``raw`` and ``item2idx``, returns a fresh dict, and
+    mutates nothing.
+
+    Args:
+        raw: (N, 4) array of [user_id, item_id, rating, timestamp].
+        item2idx: mapping raw item_id -> contiguous item index (from build_id_mappings).
+        like_threshold: minimum rating counted as a "like".
+        train_ratio: fraction of timestamp-sorted rows used as the train slice.
+
+    Returns:
+        dict[user_id (int), list[item_idx (int)]] — keyed by the raw MovieLens
+        user id (each user's sequence is independent in SASRec, so the exact key
+        identity is all that matters). Each list is in chronological
+        (ascending-timestamp) order, containing only liked, mapped items. The
+        values are raw item2idx indices; the SASRec model expects them shifted by
+        +1 (index 0 is PAD), a shift the caller applies.
+    """
+    # Sort by timestamp (column 3), then keep only the leading train slice, so
+    # the sequences never contain any interaction from the held-out test period.
+    sorted_raw = raw[np.argsort(raw[:, 3])]
+    split = int(len(sorted_raw) * train_ratio)
+    train_raw = sorted_raw[:split]
+
+    sequences: dict = {}
+    for row in train_raw:
+        uid, iid, rating = int(row[0]), int(row[1]), float(row[2])
+        if rating < like_threshold or iid not in item2idx:
+            continue
+        # Rows are already timestamp-sorted, so appending preserves chronology.
+        sequences.setdefault(uid, []).append(item2idx[iid])
+    return sequences
+
+
 def load_item_metadata(data_dir: str) -> dict:
     """Load movie titles and genres from MovieLens u.item file."""
     items = {}

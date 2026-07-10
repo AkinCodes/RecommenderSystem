@@ -45,6 +45,43 @@ Head-to-head comparison of the DLRM against classical baselines on the MovieLens
 
 ---
 
+## SASRec (Sequential Recommendation)
+
+SASRec (`models/sasrec.py`, Kang & McAuley 2018) is a **sequential** model: instead of scoring an isolated `(user, item)` pair from tabular features, it reads a user's chronologically-ordered sequence of liked items and predicts the next one with two causally-masked self-attention blocks (64-dim item embeddings, learned positional embeddings, 1 head, `padding_idx=0`, dropout 0.2 — 161,472 parameters). Trained with a BPR next-item objective (one sampled negative per position, negatives rejected against the user's liked set), seeded (`SEED=42`), leave-last-one-out (LOO) validation HR@10 for early stopping. Reproduce with `uv run python scripts/train_sasrec.py` (early-stopped at **epoch 13**, best val HR@10 **0.4526**). It is a **different task** from the DLRM's pairwise re-ranking, so we report two protocols and are careful not to conflate them.
+
+**(a) LOO next-item retrieval over the full catalogue (the native SASRec metric).** For each of **749** users with ≥2 liked training items, hold out the last liked item and rank it against **all 1,682** catalogue items (already-liked items masked out). This is the standard SASRec evaluation:
+
+| Model | Protocol | HR@10 | NDCG@10 | MRR |
+|-------|----------|-------|---------|-----|
+| SASRec | LOO next-item vs. full 1,682-item catalogue (749 users) | **0.0628** | **0.0273** | **0.0270** |
+
+> There is **no DLRM number in this row on purpose.** The DLRM is a pointwise `(user, item)` scorer trained on engineered features; it was never trained to retrieve the next item from the full catalogue and has no sequence input, so it cannot produce a comparable full-catalogue next-item number without a different training setup. HR@10 ≈ 0.063 (finding the exact next liked title in a top-10 out of 1,682, ~6× a random 0.6% baseline) is a modest-but-real signal for a 161K-param model on 100K ratings — full-catalogue next-item retrieval is a genuinely harder task than re-ranking a handful of candidates.
+
+> **Does the model actually learn? Yes — the fair, paper-standard check.** Full-catalogue retrieval (0.063 above) is deliberately the hardest framing. Under SASRec's own standard protocol — leave-one-out, ranking the held-out next item against **100 sampled negatives** on the users who actually have a sequence — the model scores **HR@10 ≈ 0.45** (validation HR@10 **0.4526**, emitted by `train_sasrec.py`; held-out warm-test users ≈ 0.44), i.e. **~4.5× the random ≈ 0.099 baseline**. So SASRec genuinely learns sequential structure. The harsh full-catalogue 0.063 (1,682-way retrieval) and the near-chance re-ranking AUC in (b) below are **task-difficulty and cold-user averaging effects, not a broken model** — the same trained checkpoint scores respectably on its native task under the standard protocol.
+
+**(b) Re-ranking the SAME held-out test candidates the DLRM is scored on (apples-to-apples table).** Here SASRec scores each test candidate by `dot(encode(user's train history), item_emb(candidate))` and runs through the **identical** `compute_ranking_metrics` used for the DLRM table above (same 283 eval users, same 0.20 test slice):
+
+| Model | NDCG@10 | Recall@10 | HitRate@10 | MRR | AUC |
+|-------|---------|-----------|------------|-----|-----|
+| DLRM (reference) | **0.7861** | **0.4210** | 0.9965 | — | **0.6762** |
+| SASRec (re-rank) | 0.6530 | 0.3856 | 0.9894 | 0.7645 | 0.5292 |
+
+> **Honest takeaway — SASRec does NOT win the re-ranking task here; the DLRM leads it** (NDCG@10 0.6530 vs 0.7861, Recall@10 0.3856 vs 0.4210). SASRec's re-ranking AUC (**0.5292**) is close to chance, which is the tell: **192 of the test users are unseen in the train slice** and therefore have an empty liked-item history, so SASRec falls back to uniform (zero) scores for them — it has nothing to attend over. This is not a bug in SASRec; it is the structural mismatch between the two evaluations. **Two asymmetries make this table not a clean, controlled A/B — do not read it as "DLRM beats SASRec, full stop":**
+> 1. **Per-row-feature asymmetry (footnote).** The DLRM scores every candidate with its **own** engineered continuous features — `item_mean`, `item_count`, `item_popularity_rank`, and the `user_mean − item_mean` interaction — computed per `(user, item)` row (see `scripts/retrain_and_compare.py`'s `dlrm_rank`, which pulls each candidate's own `test_cont` row). SASRec uses **none** of those; it sees only the item-id sequence. On MovieLens-100K, popularity/mean features alone are strong predictors of a like, so the DLRM enters this table with a per-row information advantage SASRec structurally cannot access.
+> 2. **Cold-user asymmetry.** SASRec needs a non-empty *liked* history; the DLRM only needs a user embedding + features, so it degrades more gracefully on the ~68% of eval users whose train history is empty here. The re-ranking test set was designed around the DLRM's inputs, not SASRec's.
+>
+> **Defensible statement:** on MovieLens-100K, SASRec is a correct, from-scratch sequential recommender that **owns the native next-item retrieval task the DLRM can't do**, but on the DLRM's own feature-rich re-ranking benchmark it trails the DLRM — largely because that benchmark supplies per-row popularity features SASRec ignores and is dominated by cold users with no sequence to attend over. The two models are best seen as **complementary** (sequential candidate generation + feature-rich re-ranking), not as a single-winner shootout.
+
+**Paired significance (same machinery as the classical comparison).** Running `scripts/retrain_and_compare.py` appends a `SASRec` row so the paired-bootstrap CI / permutation loop scores SASRec-vs-DLRM per-user NDCG@10 on the same 283 held-out users (reference model = DLRM; positive delta ⇒ the other model beats the DLRM):
+
+| Comparison | Mean Δ NDCG@10 | 95% CI | p-value | Verdict |
+|------------|----------------|--------|---------|---------|
+| SASRec − DLRM | −0.1331 | [−0.1604, −0.1060] | 0.0001 | **DLRM wins** |
+
+> The gap is **significant, not a coin-flip** (CI entirely below zero, p = 0.0001) — so on this re-ranking benchmark the honest verdict is unambiguously "DLRM ahead of SASRec," subject to the two asymmetries above (SASRec sees no per-row popularity features and ~68% of these eval users are cold with no sequence). This is reported with the same discipline as the LogReg result above, where the DLRM edge was *not* significant and we called it a tie. Here it **is** significant, so we say so; we do not manufacture a SASRec win. SASRec's contribution is the sequential next-item retrieval capability (protocol **a**), a task the tabular DLRM is not built for.
+
+---
+
 ## Feature Ablation
 
 How does the number of engineered features affect ranking quality? Each row uses the same DLRM architecture but trains on a different feature subset.
