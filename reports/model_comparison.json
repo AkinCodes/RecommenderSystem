@@ -34,8 +34,8 @@
       "HitRate@10": 0.9964664310954063,
       "AUC": 0.6761694952772568,
       "num_eval_users": 283,
-      "train_time_s": 4.412307024002075,
-      "latency_ms": 0.10534745379118249
+      "train_time_s": 4.074526071548462,
+      "latency_ms": 0.10643356072250754
     },
     "XGBoost": {
       "NDCG@10": 0.7606726591835358,
@@ -44,8 +44,8 @@
       "HitRate@10": 0.9929328621908127,
       "AUC": 0.6628603159765001,
       "num_eval_users": 283,
-      "train_time_s": 0.533776044845581,
-      "latency_ms": 0.2622050032368861
+      "train_time_s": 0.5313310623168945,
+      "latency_ms": 0.25014811020810157
     },
     "LightGBM": {
       "NDCG@10": 0.7552970168474509,
@@ -54,8 +54,8 @@
       "HitRate@10": 0.9964664310954063,
       "AUC": 0.6395956447456703,
       "num_eval_users": 283,
-      "train_time_s": 0.5443999767303467,
-      "latency_ms": 0.5704850252368487
+      "train_time_s": 0.5464386940002441,
+      "latency_ms": 0.5400126578751951
     },
     "LogReg": {
       "NDCG@10": 0.7936575170514832,
@@ -64,8 +64,39 @@
       "HitRate@10": 1.0,
       "AUC": 0.6806540618403396,
       "num_eval_users": 283,
-      "train_time_s": 0.026181936264038086,
-      "latency_ms": 0.1141581466072239
+      "train_time_s": 0.02515101432800293,
+      "latency_ms": 0.11351182358339429
+    }
+  },
+  "significance": {
+    "metric": "NDCG@10",
+    "method": "paired bootstrap 95% CI + two-sided paired permutation test",
+    "n_bootstrap": 10000,
+    "n_permutations": 10000,
+    "seed": 42,
+    "reference_model": "DLRM",
+    "comparisons": {
+      "XGBoost_vs_DLRM": {
+        "mean_delta": -0.025387411257441296,
+        "ci_low": -0.04167631400036657,
+        "ci_high": -0.008802292316440672,
+        "p_value": 0.0028997100289971,
+        "n_users": 283
+      },
+      "LightGBM_vs_DLRM": {
+        "mean_delta": -0.03076305359352611,
+        "ci_low": -0.04733669312356135,
+        "ci_high": -0.014514159032122735,
+        "p_value": 0.00039996000399960006,
+        "n_users": 283
+      },
+      "LogReg_vs_DLRM": {
+        "mean_delta": 0.007597446610506156,
+        "ci_low": -0.0027072156730854765,
+        "ci_high": 0.017483342349029585,
+        "p_value": 0.1382861713828617,
+        "n_users": 283
+      }
     }
   }
 }

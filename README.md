@@ -5,8 +5,23 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![Live on Render](https://img.shields.io/badge/Live%20on-Render-46E3B7?logo=render&logoColor=white)](https://recommendersystem-l993.onrender.com)
+[![Tests](https://img.shields.io/badge/tests-147%20passing-4c1?logo=pytest&logoColor=white)](#tests)
 
-A movie recommendation API powered by a Deep Learning Recommendation Model (DLRM). You send it your preferences, it runs them through a neural network, pulls real movie data from TMDB (posters, ratings, summaries — the works), and hands you back personalized recommendations. On top of the model, a LinUCB contextual-bandit layer adds **tunable exploration** — balancing proven favorites against items the model is unsure about — with online learning from feedback and off-policy evaluation. This is the backend that powers [CinemaScopeAI](https://github.com/AkinCodes/CinemaScopeAI), an iOS app for discovering movies you'll actually want to watch.
+A production movie-recommendation API serving a Deep Learning Recommendation Model (DLRM) with a two-stage retrieval pipeline and a contextual-bandit exploration layer.
+
+**Production & serving numbers (real, reproducible):**
+
+- **~0.06 ms/user** DLRM inference (PyTorch, batch-1) → **~0.01 ms/user** with ONNX Runtime (**5.7× faster** on CPU, validated <1e-5 parity); **~1 ms** Faiss candidate generation over 1,682 items. Reproducible via `scripts/export_onnx.py` + `scripts/benchmark_inference.py` → [BENCHMARK.md](BENCHMARK.md).
+- **Live on Render**, powering the [CinemaScopeAI](https://github.com/AkinCodes/CinemaScopeAI) iOS app end to end.
+- **+51% catalog coverage** (81 → 122 distinct items) at the served explore weight `w=0.2` while **matching DLRM reward** (SNIPS 0.802 vs 0.788) — off-policy evaluated on 20K replay events.
+- **147 tests passing, 0 errors** — `uv run pytest` (Python 3.12). See [Tests](#tests).
+
+**Model quality (MovieLens 100K, matched 3-way split, seeded, 283 held-out users):**
+
+- **DLRM NDCG@10 = 0.7861**, AUC = 0.6762 — evaluated with the fixed per-candidate scoring (see the [eval-rigor war story](docs/blog/eval-rigor-war-story.md)).
+- Paired significance testing: the DLRM **significantly beats** XGBoost (p = 0.003) and LightGBM (p = 0.0004), and is a **statistical tie** with a well-scaled LogReg baseline (Δ = +0.0076, 95% CI [−0.0027, +0.0175], p = 0.14). Every claim is backed by a bootstrap CI, not a bare point estimate.
+
+**Stack:** PyTorch DLRM · FastAPI · Faiss ANN retrieval · LinUCB contextual bandit (online learning + off-policy eval) · ONNX export · Docker · live TMDB enrichment. You send preferences, it runs a neural forward pass, pulls real movie data from TMDB (posters, ratings, summaries), and returns personalized, exploration-aware recommendations.
 
 ---
 
@@ -144,7 +159,7 @@ The recommender doesn't only exploit what the DLRM already knows — it can expl
 - **Makefile** — one command for anything: `make run`, `make test`, `make lint`, `make docker-build`.
 - **uv for dependency management** — fast, reproducible installs via `pyproject.toml`.
 - **Docker with health checks** — production Dockerfile includes a `HEALTHCHECK` directive that pings `/health` every 30 seconds.
-- **Comprehensive tests** — 140 tests covering model forward passes, API endpoints, input validation, edge cases (empty batches, wrong types, missing fields), structured error responses, preprocessing config, DLRM interaction verification, plus the bandit math (Sherman-Morrison updates, scale-invariant blending), off-policy estimators (replay/IPS/SNIPS against synthetic ground truth), and exploration ordering effects.
+- **Comprehensive tests** — 147 tests covering model forward passes, API endpoints, input validation, edge cases (empty batches, wrong types, missing fields), structured error responses, preprocessing config, DLRM interaction verification, plus the bandit math (Sherman-Morrison updates, scale-invariant blending), off-policy estimators (replay/IPS/SNIPS against synthetic ground truth), and exploration ordering effects.
 - **Ruff for linting** — fast Python linting and formatting with a 120-char line length.
 
 ---
@@ -213,7 +228,7 @@ See [EVALUATION.md](EVALUATION.md) for full ablation studies, failure analysis, 
 | HitRate@10 | 0.9965 |
 | AUC | 0.6762 |
 
-> Evaluated on 283 held-out users, 20K test ratings. Best val loss 0.6551, best val NDCG@10 0.7823; best checkpoint at epoch 3, early stopping at epoch 8. Trainer is seeded (`SEED=42`), so these numbers are reproducible to the digit. A prior per-user ranking-eval bug (every candidate scored with a single item's continuous features via `np.tile`) was fixed so each candidate now uses its own per-item features — this is why the calibration metrics (AUC especially) improved. Inference latency: ~0.05ms/user.
+> Evaluated on 283 held-out users, 20K test ratings. Best val loss 0.6551, best val NDCG@10 0.7823; best checkpoint at epoch 3, early stopping at epoch 8. Trainer is seeded (`SEED=42`), so these numbers are reproducible to the digit. A prior per-user ranking-eval bug (every candidate scored with a single item's continuous features via `np.tile`) was fixed so each candidate now uses its own per-item features — this is why the calibration metrics (AUC especially) improved. Inference latency: ~0.06ms/user (PyTorch, batch-1) → ~0.01ms/user via ONNX Runtime (5.7× faster on CPU, validated <1e-5 parity) — see BENCHMARK.md.
 
 **Validation vs. test (no overfitting gap).** The checkpoint selected by lowest **validation** loss scored **val NDCG@10 0.7823**; that same checkpoint scores **test NDCG@10 0.7861** (early stop at epoch 8, best checkpoint epoch 3). Val and test tracking each other (test slightly higher, not lower) is the signal we want — the model isn't overfitting the validation slice we tuned against. **AUC is 0.6762** — genuine, calibrated separation on the fixed evaluation, not the artifact the earlier buggy eval produced.
 
@@ -230,7 +245,15 @@ All models are compared under **identical matched conditions** (`scripts/retrain
 | XGBoost | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 features | 0.7607 | 0.6491 | 0.4145 | 0.9929 | 0.6629 |
 | LightGBM | 200 trees, max_depth=6, lr=0.1, subsample=0.8 on 8 features | 0.7553 | 0.6435 | 0.4152 | 0.9965 | 0.6396 |
 
-> **Matched comparison, honest takeaway:** under these matched conditions the **DLRM (0.7861) now outperforms both tree ensembles** — XGBoost (0.7607) and LightGBM (0.7553) — on NDCG@10, Precision@10, and AUC. The comparison DLRM is now identical to the production trainer (0.7861), resolving the earlier inconsistency where the comparison reported a spuriously low number. A strong linear baseline is still the model to beat: **LogReg (0.7937) edges narrowly ahead of the DLRM** — a legitimate, interesting result on a small (100K ratings), sparse, 8-engineered-feature MovieLens setup where a well-scaled linear model captures most of the signal. The honest headline: **the DLRM is competitive and now beats the tree ensembles under matched conditions, with a strong linear baseline still narrowly in front.** (Classical-baseline numbers can shift marginally with the BLAS/library version.)
+**Paired significance testing** (per-user NDCG@10, same 283 users; bootstrap 95% CI over 10,000 resamples + a two-sided paired permutation test, `seed=42`; reference = DLRM, positive delta means the other model wins):
+
+| Comparison | Mean Δ NDCG@10 | 95% CI | p-value | Verdict |
+|------------|----------------|--------|---------|---------|
+| LogReg − DLRM | +0.0076 | [−0.0027, +0.0175] | 0.138 | **statistical tie** |
+| XGBoost − DLRM | −0.0254 | [−0.0417, −0.0088] | 0.003 | **DLRM wins** |
+| LightGBM − DLRM | −0.0308 | [−0.0473, −0.0145] | 0.0004 | **DLRM wins** |
+
+> **Matched comparison, honest takeaway:** point estimates rank LogReg (0.7937) just above the DLRM (0.7861), but **that 0.0076 gap is not statistically significant** — the 95% CI [−0.0027, +0.0175] straddles zero (p = 0.138), so **LogReg and the DLRM are a statistical tie**, not a LogReg win. Reporting LogReg as the winner would be over-claiming. What *is* significant: the **DLRM beats both tree ensembles** — XGBoost (p = 0.003) and LightGBM (p = 0.0004) — with CIs entirely below zero. So the defensible headline is **the DLRM significantly outranks the gradient-boosted trees and ties a well-scaled linear baseline** on this small, 8-feature MovieLens setup. Full write-up: [eval-rigor war story](docs/blog/eval-rigor-war-story.md). (Point estimates can shift marginally with the BLAS/library version; the tie-vs-beat verdicts are the durable result.)
 
 ### Serving Architecture
 
@@ -355,18 +378,25 @@ Or visit `http://localhost:8000/docs` for the interactive Swagger UI.
 
 ### 6. Run the tests
 
+See the [Tests](#tests) section below for the one-line reproducible command.
+
+---
+
+## Tests
+
+The full suite is **147 tests, 0 collection errors**, and the project targets **Python 3.12** (the `AsyncMock`-based API tests require Python ≥ 3.8, and the parenthesized multi-context-manager syntax in the integration tests requires ≥ 3.10). The single reproducible command a reviewer should run:
+
 ```bash
-make test
+uv run pytest
 ```
 
-You should see all tests pass:
+Expected tail:
 
 ```
-tests/test_model.py::TestDLRMModel::test_forward_output_shape PASSED
-tests/test_model.py::TestDLRMModel::test_forward_output_range PASSED
-tests/test_model.py::TestPredictEndpoint::test_predict_endpoint PASSED
-...
+147 passed in ~4s
 ```
+
+> Running a bare `pytest` from a shell whose `python` resolves to an old interpreter (e.g. a stray pyenv 3.7) will report import/syntax errors — those are **environment-selection** failures, not code failures. `uv run pytest` pins the project's `.venv` (Python 3.12) and all pinned dependencies (`scipy`, `scikit-learn`, `faiss`, `torch`, …), so it collects and passes cleanly. `make test` wraps the same invocation.
 
 ---
 

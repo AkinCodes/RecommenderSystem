@@ -73,6 +73,58 @@ class MovieLensDataset(Dataset):
         return self.cont[idx], self.cat[idx], self.targets[idx]
 
 
+def paired_bootstrap_ci(scores_a, scores_b, n=10000, seed=SEED):
+    """Paired bootstrap 95% CI on the mean delta (a - b) + permutation p-value.
+
+    ``scores_a`` and ``scores_b`` are per-user metric vectors ALIGNED by user
+    (element i is the same user under model A and model B), so we resample and
+    permute the paired deltas — this respects the fact that both models are
+    scored on the same held-out users.
+
+    Returns a dict with:
+      - ``mean_delta``: observed mean(a) - mean(b)
+      - ``ci_low`` / ``ci_high``: 95% bootstrap CI on that mean delta
+      - ``p_value``: two-sided paired permutation test p-value
+      - ``n_users``: number of paired observations
+    Seeded (default ``SEED=42``) so results are reproducible to the digit.
+    """
+    a = np.asarray(scores_a, dtype=np.float64)
+    b = np.asarray(scores_b, dtype=np.float64)
+    if a.shape != b.shape:
+        raise ValueError(f"scores must be aligned/same length: {a.shape} vs {b.shape}")
+    if a.size == 0:
+        raise ValueError("empty score vectors")
+
+    diffs = a - b
+    n_users = diffs.size
+    mean_delta = float(diffs.mean())
+
+    rng = np.random.default_rng(seed)
+
+    # Bootstrap: resample paired deltas with replacement, recompute mean delta.
+    boot_idx = rng.integers(0, n_users, size=(n, n_users))
+    boot_means = diffs[boot_idx].mean(axis=1)
+    ci_low, ci_high = np.percentile(boot_means, [2.5, 97.5])
+
+    # Paired permutation test: under H0 the sign of each paired delta is
+    # exchangeable, so flip signs at random and count how often the permuted
+    # |mean delta| meets or exceeds the observed |mean delta|.
+    obs = abs(mean_delta)
+    signs = rng.choice([-1.0, 1.0], size=(n, n_users))
+    perm_means = np.abs((signs * diffs).mean(axis=1))
+    # +1 numerator/denominator: the observed arrangement is itself one valid
+    # permutation, which keeps the p-value from ever being exactly 0.
+    p_value = float((np.sum(perm_means >= obs) + 1) / (n + 1))
+
+    return {
+        "mean_delta": mean_delta,
+        "ci_low": float(ci_low),
+        "ci_high": float(ci_high),
+        "p_value": p_value,
+        "n_users": int(n_users),
+    }
+
+
 def dcg(relevances, k):
     rel = np.array(relevances[:k], dtype=np.float64)
     if len(rel) == 0:
@@ -90,6 +142,9 @@ def ndcg_at_k(ranked_relevances, k):
 def compute_ranking_metrics(user_test, rank_fn, k=K):
     ndcgs, precisions, recalls, hit_rates = [], [], [], []
     all_labels, all_scores = [], []
+    # Retain the per-user NDCG vector keyed by uidx so the same users can be
+    # paired ACROSS models (bootstrap CIs / significance tests downstream).
+    per_user_ndcg = {}
 
     for uidx, items_ratings in user_test.items():
         if len(items_ratings) < 2:
@@ -113,7 +168,9 @@ def compute_ranking_metrics(user_test, rank_fn, k=K):
         top_k_items = [item_indices[j] for j in ranked_idx[:k]]
 
         ranked_rels = [1.0 if item_indices[j] in relevant else 0.0 for j in ranked_idx]
-        ndcgs.append(ndcg_at_k(ranked_rels, k))
+        user_ndcg = ndcg_at_k(ranked_rels, k)
+        ndcgs.append(user_ndcg)
+        per_user_ndcg[uidx] = user_ndcg
 
         hits_in_k = sum(1 for it in top_k_items if it in relevant)
         precisions.append(hits_in_k / k)
@@ -131,6 +188,7 @@ def compute_ranking_metrics(user_test, rank_fn, k=K):
         "HitRate@10": float(np.mean(hit_rates)) if hit_rates else 0.0,
         "AUC": float(auc),
         "num_eval_users": len(ndcgs),
+        "per_user_ndcg": per_user_ndcg,
     }
 
 
@@ -504,6 +562,43 @@ def main():
     print(f"Evaluated on {dlrm_metrics['num_eval_users']} users with top-{K} recommendations.")
     print()
 
+    # ------------------------------------------------------------------ #
+    # Paired bootstrap CIs + permutation p-values on per-user NDCG@10.
+    # A 0.0076 point-estimate gap on ~283 users means nothing without an
+    # interval / significance test — so pair every model against the DLRM
+    # (and rank the models) on the SAME users and report the truth.
+    # ------------------------------------------------------------------ #
+    print("Paired bootstrap 95% CI + permutation p-value on per-user NDCG@10")
+    print("(reference model = DLRM; positive delta => the OTHER model is better)")
+    print("=" * 70)
+    ci_header = "| Comparison        | Mean Δ NDCG@10 | 95% CI            | p-value | Verdict |"
+    ci_sep =    "|-------------------|----------------|-------------------|---------|---------|"
+    print(ci_header)
+    print(ci_sep)
+
+    dlrm_ndcg = dlrm_metrics["per_user_ndcg"]
+    comparisons = {}
+    for name, m in results:
+        if name == "DLRM":
+            continue
+        other_ndcg = m["per_user_ndcg"]
+        # Pair on the intersection of eval users (all models share the same
+        # user_test, so this is the full 283-user set in practice).
+        shared = sorted(set(dlrm_ndcg) & set(other_ndcg))
+        a = np.array([other_ndcg[u] for u in shared])  # candidate model
+        b = np.array([dlrm_ndcg[u] for u in shared])   # DLRM reference
+        stat = paired_bootstrap_ci(a, b)
+        tie = stat["ci_low"] <= 0.0 <= stat["ci_high"]
+        verdict = "tie" if tie else (f"{name} wins" if stat["mean_delta"] > 0 else "DLRM wins")
+        comparisons[f"{name}_vs_DLRM"] = stat
+        label = f"{name} - DLRM"
+        print(
+            f"| {label:<17} | {stat['mean_delta']:+.4f}        "
+            f"| [{stat['ci_low']:+.4f}, {stat['ci_high']:+.4f}] "
+            f"| {stat['p_value']:.4f}  | {verdict:<7} |"
+        )
+    print()
+
     report = {
         "dataset": "MovieLens-100K",
         "num_ratings": int(len(raw)),
@@ -539,6 +634,18 @@ def main():
             "train_time_s": m.get("train_time"),
             "latency_ms": m.get("latency_ms"),
         }
+
+    # Persist the paired significance results (keyed <model>_vs_DLRM) so the
+    # CI / p-value numbers in EVALUATION.md are traceable to a real run.
+    report["significance"] = {
+        "metric": "NDCG@10",
+        "method": "paired bootstrap 95% CI + two-sided paired permutation test",
+        "n_bootstrap": 10000,
+        "n_permutations": 10000,
+        "seed": SEED,
+        "reference_model": "DLRM",
+        "comparisons": comparisons,
+    }
 
     os.makedirs(os.path.dirname(REPORT_JSON_PATH), exist_ok=True)
     with open(REPORT_JSON_PATH, "w") as f:

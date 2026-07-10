@@ -31,9 +31,17 @@ Head-to-head comparison of the DLRM against classical baselines on the MovieLens
 | XGBoost | 0.7607 | 0.6491 | 0.4145 | 0.9929 | 0.6629 |
 | LightGBM | 0.7553 | 0.6435 | 0.4152 | 0.9965 | 0.6396 |
 
-> Under these matched conditions the **DLRM (0.7861) now outperforms both tree ensembles** — XGBoost (0.7607) and LightGBM (0.7553) — on NDCG@10, Precision@10, and AUC. A strong linear baseline is still the model to beat: **LogReg (0.7937) edges narrowly ahead of the DLRM**, a legitimate result on a small (100K ratings), sparse, 8-engineered-feature MovieLens setup where a well-scaled linear model captures most of the signal. The honest takeaway: **the DLRM is competitive and now beats the tree ensembles under matched conditions, with a strong linear baseline still narrowly in front** — not that the DLRM wins outright. Classical-baseline numbers can shift marginally with the BLAS/library version.
+**Is the DLRM–LogReg gap real? Paired significance testing.** A 0.0076 NDCG@10 gap between LogReg and the DLRM on **283 users** is meaningless without an interval. So each model is paired against the DLRM on the **same 283 held-out users** (per-user NDCG@10 vectors, aligned by user), and we compute a **paired bootstrap 95% CI** (10,000 resamples, `seed=42`) on the mean delta plus a **two-sided paired permutation p-value** (10,000 sign-flips). Reference model = DLRM; a **positive** delta means the other model beats the DLRM. Reproduce with `uv run python scripts/retrain_and_compare.py` (numbers land in `reports/model_comparison.json` under `"significance"`):
 
-**What to expect:** On MovieLens 100K, tree-based models (XGBoost, LightGBM) and even LogReg often match or beat simple neural approaches because the dataset is small enough that hand-crafted features capture most of the signal. The DLRM's advantage shows in learning user-item interactions directly from embeddings, but at 100K ratings that advantage is marginal — the value of learned embeddings shows more clearly at scale.
+| Comparison | Mean Δ NDCG@10 | 95% CI | p-value | Verdict |
+|------------|----------------|--------|---------|---------|
+| LogReg − DLRM | +0.0076 | [−0.0027, +0.0175] | 0.138 | **statistical tie** |
+| XGBoost − DLRM | −0.0254 | [−0.0417, −0.0088] | 0.003 | **DLRM wins** |
+| LightGBM − DLRM | −0.0308 | [−0.0473, −0.0145] | 0.0004 | **DLRM wins** |
+
+> **Honest takeaway.** The headline "LogReg edges ahead of the DLRM" does **not** survive a significance test: the +0.0076 gap has a 95% CI of **[−0.0027, +0.0175]** that **straddles zero** (p = 0.138). LogReg and the DLRM are **statistically indistinguishable** on this data — a coin-flip could put either on top on the next resample, so reporting LogReg as the winner would be over-claiming. The DLRM's advantage over both tree ensembles **is** real: XGBoost (p = 0.003) and LightGBM (p = 0.0004) both fall significantly behind, with CIs entirely below zero. So the defensible statement is: **on matched MovieLens 100K conditions the DLRM significantly beats both gradient-boosted trees and ties a well-scaled linear baseline** — not that any single model "wins" the LogReg/DLRM race. Point estimates can still shift marginally with the BLAS/library version; the significance verdicts (tie vs. beat) are the durable result.
+
+**What to expect:** On MovieLens 100K, a well-scaled linear model (LogReg) stays neck-and-neck with a neural approach because the dataset is small enough that hand-crafted features capture most of the signal — and the significance test above confirms that (LogReg ties the DLRM, it does not beat it). Where the DLRM's learned user-item interaction *does* pay off is against the tree ensembles, which it significantly outranks under matched conditions. At 100K ratings the neural vs. linear advantage is marginal by design; the value of learned embeddings shows more clearly at scale.
 
 ---
 
