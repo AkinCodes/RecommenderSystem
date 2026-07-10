@@ -62,3 +62,8 @@ docs/learning_roadmap/
 *.pth
 *.pkl
 *.log
+
+# Regenerable script reports (canonical copies are tracked in docs/)
+/CLASSICAL_COMPARISON.md
+/FAIRNESS_REPORT.md
+experiments/results/default_dlrm_vs_baseline.*
