@@ -255,6 +255,14 @@ All models are compared under **identical matched conditions** (`scripts/retrain
 
 > **Matched comparison, honest takeaway:** point estimates rank LogReg (0.7937) just above the DLRM (0.7861), but **that 0.0076 gap is not statistically significant** — the 95% CI [−0.0027, +0.0175] straddles zero (p = 0.138), so **LogReg and the DLRM are a statistical tie**, not a LogReg win. Reporting LogReg as the winner would be over-claiming. What *is* significant: the **DLRM beats both tree ensembles** — XGBoost (p = 0.003) and LightGBM (p = 0.0004) — with CIs entirely below zero. So the defensible headline is **the DLRM significantly outranks the gradient-boosted trees and ties a well-scaled linear baseline** on this small, 8-feature MovieLens setup. Full write-up: [eval-rigor war story](docs/blog/eval-rigor-war-story.md). (Point estimates can shift marginally with the BLAS/library version; the tie-vs-beat verdicts are the durable result.)
 
+### Sequential Model — SASRec
+
+A from-scratch self-attentive sequential recommender (`models/sasrec.py`, Kang & McAuley 2018) — causal-masked self-attention over each user's chronological like-sequence (161K params). It **owns native next-item retrieval** (a task the tabular DLRM structurally can't do) and trains to a competent warm-user leave-one-out **HR@10 ≈ 0.45 (~4.5× random)**. On the DLRM's own feature-rich re-ranking benchmark it **trails the DLRM** (NDCG@10 0.65 vs 0.79; paired Δ = −0.13, p = 0.0001) — largely because that benchmark supplies per-row popularity features SASRec ignores and ~68% of its eval users are cold with no sequence to attend over. The two are **complementary** (sequential candidate generation + feature-rich re-ranking), reported honestly — no fabricated win. Full breakdown: [EVALUATION.md](EVALUATION.md).
+
+### Causal-Impact Analysis — DoWhy
+
+Is the exploration policy's coverage lift **causal or just correlational**? A DoWhy `identify → estimate → refute` analysis (`scripts/causal_impact.py`) treats explore-weight as the treatment and adjusts for popularity + user-activity confounders (the mediator — the shown item — is correctly excluded). The causal effect on coverage is **+0.0101** (DoWhy's backdoor estimate matches a hand-rolled OLS to 4 decimals) and **survives all three refutation tests** (placebo collapses to ≈0). It confirms the **+51% coverage lift is causal** within the stated assumptions, and honestly separates *breadth* (real, caused) from *novelty/rarity* (not bought). Full write-up: [CAUSAL_ANALYSIS.md](CAUSAL_ANALYSIS.md). (`dowhy` lives in an optional `[causal]` extra, so CI never installs it.)
+
 ### Serving Architecture
 
 | Endpoint | Strategy | Description |
@@ -757,7 +765,7 @@ aws ecs update-service --cluster your-cluster --service your-service --force-new
 
 ## What I'd Improve Next
 
-- **Sequential model** — add SASRec or BERT4Rec to capture temporal user behavior (what the user watched recently, not just aggregate stats)
+- **SASRec in live serving** — the self-attentive sequential model is built and offline-evaluated (see above); the next step is wiring it into a `/recommend` endpoint as a sequential candidate generator ahead of the DLRM re-ranker, and a BERT4Rec comparison
 - **Genre features in DLRM** — genre data is already loaded but not used in training. Adding content features would improve cold-start for items.
 - **Negative sampling** — explicit hard-negative mining during training to improve ranking quality
 - **Feature store** — replace the pickle-based serving context with a feature store (Feast/Redis) for fresh user features
