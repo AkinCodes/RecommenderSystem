@@ -5,7 +5,7 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![Live on Render](https://img.shields.io/badge/Live%20on-Render-46E3B7?logo=render&logoColor=white)](https://recommendersystem-l993.onrender.com)
-[![Tests](https://img.shields.io/badge/tests-147%20passing-4c1?logo=pytest&logoColor=white)](#tests)
+[![CI](https://github.com/AkinCodes/RecommenderSystem/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AkinCodes/RecommenderSystem/actions/workflows/ci.yml)
 
 A production movie-recommendation API serving a Deep Learning Recommendation Model (DLRM) with a two-stage retrieval pipeline and a contextual-bandit exploration layer.
 
