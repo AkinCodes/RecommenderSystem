@@ -4,15 +4,14 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-[![Live on Render](https://img.shields.io/badge/Live%20on-Render-46E3B7?logo=render&logoColor=white)](https://recommendersystem-l993.onrender.com)
 [![CI](https://github.com/AkinCodes/RecommenderSystem/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AkinCodes/RecommenderSystem/actions/workflows/ci.yml)
 
-A production movie-recommendation API serving a Deep Learning Recommendation Model (DLRM) with a two-stage retrieval pipeline and a contextual-bandit exploration layer.
+A movie-recommendation API serving a Deep Learning Recommendation Model (DLRM) with a two-stage retrieval pipeline and a contextual-bandit exploration layer.
 
-**Production & serving numbers (real, reproducible):**
+**Serving numbers (real, reproducible):**
 
 - **~0.06 ms/user** DLRM inference (PyTorch, batch-1) → **~0.01 ms/user** with ONNX Runtime (**5.7× faster** on CPU, validated <1e-5 parity); **~1 ms** Faiss candidate generation over 1,682 items. Reproducible via `scripts/export_onnx.py` + `scripts/benchmark_inference.py` → [BENCHMARK.md](BENCHMARK.md).
-- **Live on Render**, powering the [CinemaScopeAI](https://github.com/AkinCodes/CinemaScopeAI) iOS app end to end.
+- **Docker-ready with a `/health` check**, and built as the backend for a SwiftUI iOS app. It ran on Render's free tier; hosting is paused for now (see [Deployment](#deployment)).
 - **+51% catalog coverage** (81 → 122 distinct items) at the served explore weight `w=0.2` while **matching DLRM reward** (SNIPS 0.802 vs 0.788) — off-policy evaluated on 20K replay events.
 - **147 tests passing, 0 errors** — `uv run pytest` (Python 3.12). See [Tests](#tests).
 
@@ -25,17 +24,24 @@ A production movie-recommendation API serving a Deep Learning Recommendation Mod
 
 ---
 
-## Live Demo
+## Quick Demo (run it locally)
 
-The API is live right now. Try it:
+Hosting is paused for now, so the quickest way to try it is on your own machine. You'll need a free TMDB API key (see [Getting Started](#getting-started)):
 
 ```bash
-curl -X POST https://recommendersystem-l993.onrender.com/api/v1/predict \
+git clone https://github.com/AkinCodes/RecommenderSystem.git && cd RecommenderSystem
+make install
+cp .env.example .env   # then add TMDB_API_KEY and TMDB_BEARER_TOKEN
+make run
+```
+
+Then, in another terminal:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/predict \
   -H "Content-Type: application/json" \
   -d '{"continuous_features": [0.76, 0.5, 0.3, 0.4, 0.72, 0.6, 0.8, 0.52], "categorical_features": [1, 2]}'
 ```
-
-> **Note:** It's on Render's free tier, so the first request might take ~30 seconds to wake up. After that, responses come back fast.
 
 You'll get something like this:
 
@@ -178,7 +184,7 @@ The recommender doesn't only exploit what the DLRM already knows — it can expl
 | **pytest** | Test framework with fixtures, parametrize, and async support for testing FastAPI endpoints |
 | **Faiss** | Approximate nearest-neighbor search for fast candidate retrieval in the two-stage pipeline |
 | **W&B** | Experiment tracking — logs training curves, hyperparameters, and evaluation metrics |
-| **Render** | Simple container deployment with auto-deploy from GitHub pushes |
+| **Render** | Free-tier container hosting used for the demo (paused for now) |
 
 ---
 
@@ -741,7 +747,7 @@ The production Dockerfile uses Python 3.11 with uv for fast installs and include
 
 ### Render
 
-The API is deployed on Render at **https://recommendersystem-l993.onrender.com**. It auto-deploys on every push to `main`. Render builds the Docker image, sets the environment variables, and runs the container.
+The API ran on Render's free tier, which rebuilt the Docker image from `main` on every push. Hosting is paused for now. To bring it back, create a Render web service from this repo's `Dockerfile` and set `TMDB_API_KEY` and `TMDB_BEARER_TOKEN`.
 
 ### AWS ECS (Fargate)
 
@@ -772,13 +778,6 @@ aws ecs update-service --cluster your-cluster --service your-service --force-new
 - **Model versioning** — track which model version served each prediction for reproducibility
 - **Rate limiting** — protect the TMDB integration from getting throttled under heavy load
 - **Caching** — Redis or in-memory cache for TMDB responses since popular movies don't change every second
-
----
-
-## Related Projects
-
-- **[CinemaScopeAI](https://github.com/AkinCodes/CinemaScopeAI)** — the iOS app that talks to this API. Built with SwiftUI, displays recommendations with posters, ratings, and summaries.
-- **[MoviePosterAI](https://github.com/AkinCodes/MoviePosterAI)** — poster analysis using computer vision.
 
 ---
 
