@@ -751,9 +751,7 @@ The API ran on Render's free tier, which rebuilt the Docker image from `main` on
 
 ### AWS ECS (Fargate)
 
-The repo includes an ECS task definition (`task-definition.json`) configured for Fargate with 256 CPU units and 512MB memory. The container image is pushed to ECR at `YOUR_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/cinemascope-recsys:latest`.
-
-To deploy to ECS:
+Not used yet: the `deploy/` folder has an ECS Fargate task definition (256 CPU units, 512 MB memory) and IAM policy files, but they haven't been run against AWS. To try it with your own AWS account, replace `YOUR_AWS_ACCOUNT_ID` in those files and run:
 
 ```bash
 # Build and push to ECR
@@ -763,7 +761,7 @@ aws ecr get-login-password --region us-east-1 | docker login --username AWS --pa
 docker push YOUR_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/cinemascope-recsys:latest
 
 # Register task and run
-aws ecs register-task-definition --cli-input-json file://task-definition.json
+aws ecs register-task-definition --cli-input-json file://deploy/task-definition.json
 aws ecs update-service --cluster your-cluster --service your-service --force-new-deployment
 ```
 
